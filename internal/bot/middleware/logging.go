@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"log/slog"
-	"time"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -10,8 +9,6 @@ import (
 
 // Logging logs incoming updates with structured fields.
 func Logging(b *gotgbot.Bot, ctx *ext.Context) error {
-	start := time.Now()
-
 	var (
 		userID   int64
 		username string
@@ -44,7 +41,6 @@ func Logging(b *gotgbot.Bot, ctx *ext.Context) error {
 		"user_id", userID,
 		"username", username,
 		"type", msgType,
-		"duration_ms", time.Since(start).Milliseconds(),
 	)
 
 	return nil

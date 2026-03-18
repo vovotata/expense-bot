@@ -36,7 +36,12 @@ func (w *Whitelist) Middleware(b *gotgbot.Bot, ctx *ext.Context) error {
 			"user_id", ctx.EffectiveUser.Id,
 			"username", ctx.EffectiveUser.Username,
 		)
-		if ctx.EffectiveMessage != nil {
+		if ctx.CallbackQuery != nil {
+			_, _ = ctx.CallbackQuery.Answer(b, &gotgbot.AnswerCallbackQueryOpts{
+				Text:      "⛔ У вас нет доступа к этому боту.",
+				ShowAlert: true,
+			})
+		} else if ctx.EffectiveMessage != nil {
 			_, _ = ctx.EffectiveMessage.Reply(b, "⛔ У вас нет доступа к этому боту.", nil)
 		}
 		return ext.EndGroups

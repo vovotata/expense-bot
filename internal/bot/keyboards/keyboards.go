@@ -79,13 +79,14 @@ func EditFieldKeyboard(flowType string) gotgbot.InlineKeyboardMarkup {
 	return gotgbot.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
+// AdminRequestKeyboard creates admin action buttons. requestID should be the full UUID.
 func AdminRequestKeyboard(requestID string) gotgbot.InlineKeyboardMarkup {
 	return gotgbot.InlineKeyboardMarkup{
 		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
 			{
-				{Text: "✅ Одобрить", CallbackData: fmt.Sprintf("adm:ap:%s", requestID)},
-				{Text: "💰 Оплачено", CallbackData: fmt.Sprintf("adm:pd:%s", requestID)},
-				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("adm:rj:%s", requestID)},
+				{Text: "✅ Одобрить", CallbackData: fmt.Sprintf("a:ap:%s", requestID)},
+				{Text: "💰 Оплачено", CallbackData: fmt.Sprintf("a:pd:%s", requestID)},
+				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("a:rj:%s", requestID)},
 			},
 		},
 	}

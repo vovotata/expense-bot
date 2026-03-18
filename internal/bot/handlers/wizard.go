@@ -194,11 +194,11 @@ func (h *Handler) sendSummary(b *gotgbot.Bot, chatID int64, state *fsm.WizardSta
 }
 
 func formatSummary(state *fsm.WizardState) string {
-	expType := domain.ExpenseType(state.ExpenseType).Label()
+	expType := state.ExpenseType.Label()
 	s := fmt.Sprintf("📋 <b>Ваша заявка:</b>\n\n• Тип: %s\n", expType)
 
 	if state.FlowType == "A" {
-		s += fmt.Sprintf("• Оплата: %s\n", domain.PaymentMethod(state.PaymentMethod).Label())
+		s += fmt.Sprintf("• Оплата: %s\n", state.PaymentMethod.Label())
 		if state.Address != "" {
 			s += fmt.Sprintf("• Адрес: %s\n", state.Address)
 		}
@@ -217,7 +217,7 @@ func formatSummary(state *fsm.WizardState) string {
 
 // FormatAdminNotification formats the request for admin chat.
 func FormatAdminNotification(state *fsm.WizardState, username, firstName string, requestID string) string {
-	expType := domain.ExpenseType(state.ExpenseType).Label()
+	expType := state.ExpenseType.Label()
 
 	s := fmt.Sprintf("🆕 <b>Заявка #%s</b>\n\n", requestID[:8])
 	if username != "" {
@@ -228,7 +228,7 @@ func FormatAdminNotification(state *fsm.WizardState, username, firstName string,
 	s += fmt.Sprintf("📦 Тип: %s\n", expType)
 
 	if state.FlowType == "A" {
-		s += fmt.Sprintf("💳 Оплата: %s\n", domain.PaymentMethod(state.PaymentMethod).Label())
+		s += fmt.Sprintf("💳 Оплата: %s\n", state.PaymentMethod.Label())
 		if state.Address != "" {
 			s += fmt.Sprintf("📍 Адрес: <code>%s</code>\n", state.Address)
 		}

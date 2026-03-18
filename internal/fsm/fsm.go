@@ -15,9 +15,10 @@ type StateStore interface {
 
 // MemoryStore is an in-memory StateStore backed by sync.Map with TTL cleanup.
 type MemoryStore struct {
-	data sync.Map
-	ttl  time.Duration
-	done chan struct{}
+	data  sync.Map
+	locks sync.Map // per-user mutexes to prevent race conditions
+	ttl   time.Duration
+	done  chan struct{}
 }
 
 // NewMemoryStore creates a new in-memory store with background TTL cleanup.
@@ -30,6 +31,21 @@ func NewMemoryStore(ttl time.Duration) *MemoryStore {
 	return ms
 }
 
+func (ms *MemoryStore) getUserLock(userID int64) *sync.Mutex {
+	val, _ := ms.locks.LoadOrStore(userID, &sync.Mutex{})
+	return val.(*sync.Mutex)
+}
+
+// Lock acquires a per-user lock. Must be paired with Unlock.
+func (ms *MemoryStore) Lock(userID int64) {
+	ms.getUserLock(userID).Lock()
+}
+
+// Unlock releases a per-user lock.
+func (ms *MemoryStore) Unlock(userID int64) {
+	ms.getUserLock(userID).Unlock()
+}
+
 func (ms *MemoryStore) Get(_ context.Context, userID int64) (*WizardState, error) {
 	val, ok := ms.data.Load(userID)
 	if !ok {
@@ -40,12 +56,16 @@ func (ms *MemoryStore) Get(_ context.Context, userID int64) (*WizardState, error
 		ms.data.Delete(userID)
 		return nil, nil
 	}
-	return state, nil
+	// Return a copy to prevent concurrent mutation
+	cp := *state
+	return &cp, nil
 }
 
 func (ms *MemoryStore) Set(_ context.Context, state *WizardState) error {
 	state.LastActiveAt = time.Now()
-	ms.data.Store(state.UserID, state)
+	// Store a copy
+	cp := *state
+	ms.data.Store(state.UserID, &cp)
 	return nil
 }
 
