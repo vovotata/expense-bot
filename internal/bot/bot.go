@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	apphandlers "expense-bot/internal/bot/handlers"
+	"expense-bot/internal/bot/middleware"
 	"expense-bot/internal/config"
 	"expense-bot/internal/fsm"
 	"expense-bot/internal/storage"
@@ -21,6 +22,7 @@ type Bot struct {
 	updater    *ext.Updater
 	dispatcher *ext.Dispatcher
 	handler    *apphandlers.Handler
+	cfg        *config.Config
 }
 
 func New(cfg *config.Config, store storage.Storage, fsmStore fsm.StateStore) (*Bot, error) {
@@ -47,13 +49,31 @@ func New(cfg *config.Config, store storage.Storage, fsmStore fsm.StateStore) (*B
 		updater:    updater,
 		dispatcher: dispatcher,
 		handler:    h,
+		cfg:        cfg,
 	}
 
+	b.registerMiddleware()
 	b.registerHandlers()
 	return b, nil
 }
 
+func (b *Bot) registerMiddleware() {
+	// Group -2: Logging (always runs)
+	b.dispatcher.AddHandlerToGroup(handlers.NewMessage(message.All, middleware.Logging), -2)
+	b.dispatcher.AddHandlerToGroup(handlers.NewCallback(callbackquery.All, middleware.Logging), -2)
+
+	// Group -1: Whitelist + Rate limiting
+	wl := middleware.NewWhitelist(b.cfg.AllowedUserIDs)
+	b.dispatcher.AddHandlerToGroup(handlers.NewMessage(message.All, wl.Middleware), -1)
+	b.dispatcher.AddHandlerToGroup(handlers.NewCallback(callbackquery.All, wl.Middleware), -1)
+
+	rl := middleware.NewRateLimiter(b.cfg.RateLimitPerMin)
+	b.dispatcher.AddHandlerToGroup(handlers.NewMessage(message.All, rl.Middleware), -1)
+	b.dispatcher.AddHandlerToGroup(handlers.NewCallback(callbackquery.All, rl.Middleware), -1)
+}
+
 func (b *Bot) registerHandlers() {
+	// Group 0: Command handlers
 	b.dispatcher.AddHandler(handlers.NewCommand("start", b.handler.Start))
 	b.dispatcher.AddHandler(handlers.NewCommand("addmail", b.handler.HandleAddMail))
 	b.dispatcher.AddHandler(handlers.NewCommand("delmail", b.handler.HandleDelMail))
@@ -67,7 +87,7 @@ func (b *Bot) registerHandlers() {
 	b.dispatcher.AddHandler(handlers.NewMessage(message.Photo, b.handler.HandlePhoto))
 	b.dispatcher.AddHandler(handlers.NewMessage(message.Document, b.handler.HandlePhoto))
 
-	// Text messages (wizard input)
+	// Text messages (wizard input) — must be last
 	b.dispatcher.AddHandler(handlers.NewMessage(message.Text, b.handler.HandleTextMessage))
 }
 
