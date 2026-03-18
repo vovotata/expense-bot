@@ -11,6 +11,7 @@ type Config struct {
 	BotToken       string  `envconfig:"BOT_TOKEN" required:"true"`
 	AdminChatID    int64   `envconfig:"ADMIN_CHAT_ID" required:"true"`
 	AllowedUserIDs []int64 `envconfig:"ALLOWED_USER_IDS"`
+	AdminUserIDs   []int64 `envconfig:"ADMIN_USER_IDS"`
 
 	DBHost            string        `envconfig:"DB_HOST" default:"localhost"`
 	DBPort            int           `envconfig:"DB_PORT" default:"5432"`

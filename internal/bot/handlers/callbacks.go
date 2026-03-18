@@ -130,10 +130,10 @@ func (h *Handler) handleConfirmCallback(b *gotgbot.Bot, ctx *ext.Context, action
 		})
 		return err
 	case "cancel":
-		// First update the message, then delete FSM state
 		_, _ = ctx.EffectiveMessage.Delete(b, nil)
-		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Заявка отменена.", nil)
 		_ = h.fsm.Delete(dbCtx, userID)
+		h.restoreMenu(b, ctx.EffectiveChat.Id, userID)
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Заявка отменена.", nil)
 		return nil
 	}
 	return nil
@@ -211,8 +211,9 @@ func (h *Handler) submitRequest(b *gotgbot.Bot, ctx *ext.Context, state *fsm.Wiz
 	// Clear FSM
 	_ = h.fsm.Delete(dbCtx, userID)
 
-	// Delete summary message and send confirmation
+	// Delete summary message, send confirmation, restore menu
 	_, _ = ctx.EffectiveMessage.Delete(b, nil)
+	h.restoreMenu(b, ctx.EffectiveChat.Id, userID)
 	_, _ = b.SendMessage(ctx.EffectiveChat.Id,
 		fmt.Sprintf("✅ Заявка #%s отправлена!", created.ID.String()[:8]), nil)
 

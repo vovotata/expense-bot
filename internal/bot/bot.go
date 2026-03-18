@@ -42,7 +42,7 @@ func New(cfg *config.Config, store storage.Storage, fsmStore fsm.StateStore) (*B
 
 	updater := ext.NewUpdater(dispatcher, nil)
 
-	h := apphandlers.New(store, fsmStore, cfg.AdminChatID)
+	h := apphandlers.New(store, fsmStore, cfg.AdminChatID, cfg.AdminUserIDs)
 
 	b := &Bot{
 		api:        api,

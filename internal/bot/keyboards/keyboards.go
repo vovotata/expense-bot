@@ -15,15 +15,39 @@ const (
 	BtnMyMails    = "📧 Мои почты"
 	BtnAddMail    = "➕ Добавить почту"
 	BtnDelMail    = "🗑 Удалить почту"
+	BtnCancel     = "❌ Отмена"
 )
 
-// MainMenuKeyboard returns a persistent ReplyKeyboardMarkup for the user.
-func MainMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
+// UserMenuKeyboard — for regular users: only 2 buttons.
+func UserMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return gotgbot.ReplyKeyboardMarkup{
+		Keyboard: [][]gotgbot.KeyboardButton{
+			{{Text: BtnNewRequest}},
+			{{Text: BtnCodes}},
+		},
+		ResizeKeyboard: true,
+		IsPersistent:   true,
+	}
+}
+
+// AdminMenuKeyboard — for admins: full access including email management.
+func AdminMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return gotgbot.ReplyKeyboardMarkup{
 		Keyboard: [][]gotgbot.KeyboardButton{
 			{{Text: BtnNewRequest}},
 			{{Text: BtnCodes}, {Text: BtnMyMails}},
 			{{Text: BtnAddMail}, {Text: BtnDelMail}},
+		},
+		ResizeKeyboard: true,
+		IsPersistent:   true,
+	}
+}
+
+// WizardKeyboard — during active wizard, show only cancel.
+func WizardKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return gotgbot.ReplyKeyboardMarkup{
+		Keyboard: [][]gotgbot.KeyboardButton{
+			{{Text: BtnCancel}},
 		},
 		ResizeKeyboard: true,
 		IsPersistent:   true,
@@ -60,7 +84,7 @@ func PaymentMethodKeyboard() gotgbot.InlineKeyboardMarkup {
 	}
 }
 
-// ConfirmKeyboard — destructive "Отменить" on a separate row from "Отправить".
+// ConfirmKeyboard — destructive "Отменить" on a separate row.
 func ConfirmKeyboard() gotgbot.InlineKeyboardMarkup {
 	return gotgbot.InlineKeyboardMarkup{
 		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
@@ -77,7 +101,7 @@ func ConfirmKeyboard() gotgbot.InlineKeyboardMarkup {
 	}
 }
 
-// CommentSkipKeyboard adds a "Пропустить" button for optional comment.
+// CommentSkipKeyboard adds a skip button for optional comment.
 func CommentSkipKeyboard() gotgbot.InlineKeyboardMarkup {
 	return gotgbot.InlineKeyboardMarkup{
 		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
@@ -131,7 +155,7 @@ func EditFieldKeyboard(flowType string) gotgbot.InlineKeyboardMarkup {
 	return gotgbot.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// AdminRequestKeyboard — only "Оплачено" and "Отклонить", on separate rows.
+// AdminRequestKeyboard — "Оплачено" and "Отклонить" on separate rows.
 func AdminRequestKeyboard(requestID string) gotgbot.InlineKeyboardMarkup {
 	return gotgbot.InlineKeyboardMarkup{
 		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{

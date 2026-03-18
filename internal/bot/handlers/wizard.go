@@ -30,6 +30,8 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 		return h.HandleAddMail(b, ctx)
 	case keyboards.BtnDelMail:
 		return h.HandleDelMail(b, ctx)
+	case keyboards.BtnCancel:
+		return h.handleCancelFromKeyboard(b, ctx)
 	}
 
 	userID := ctx.EffectiveUser.Id
@@ -210,6 +212,14 @@ func (h *Handler) sendSummary(b *gotgbot.Bot, chatID int64, state *fsm.WizardSta
 		ParseMode:   "HTML",
 		ReplyMarkup: kb,
 	})
+	return err
+}
+
+func (h *Handler) handleCancelFromKeyboard(b *gotgbot.Bot, ctx *ext.Context) error {
+	userID := ctx.EffectiveUser.Id
+	_ = h.fsm.Delete(context.Background(), userID)
+	h.restoreMenu(b, ctx.EffectiveChat.Id, userID)
+	_, err := b.SendMessage(ctx.EffectiveChat.Id, "❌ Заявка отменена.", nil)
 	return err
 }
 

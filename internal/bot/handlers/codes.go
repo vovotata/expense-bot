@@ -12,9 +12,12 @@ import (
 	"expense-bot/internal/bot/keyboards"
 )
 
-// HandleAddMail starts the process of adding an email for monitoring.
+// HandleAddMail starts the process of adding an email for monitoring (admin only).
 func (h *Handler) HandleAddMail(b *gotgbot.Bot, ctx *ext.Context) error {
 	userID := ctx.EffectiveUser.Id
+	if !h.isAdmin(userID) {
+		return nil
+	}
 	dbCtx := context.Background()
 
 	count, err := h.store.CountEmailAccountsByUser(dbCtx, userID)
@@ -38,6 +41,9 @@ func (h *Handler) HandleAddMail(b *gotgbot.Bot, ctx *ext.Context) error {
 
 // HandleDelMail shows the list of email accounts to delete.
 func (h *Handler) HandleDelMail(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !h.isAdmin(ctx.EffectiveUser.Id) {
+		return nil
+	}
 	userID := ctx.EffectiveUser.Id
 	dbCtx := context.Background()
 
@@ -69,6 +75,9 @@ func (h *Handler) HandleDelMail(b *gotgbot.Bot, ctx *ext.Context) error {
 
 // HandleMyMails shows the list of connected email accounts.
 func (h *Handler) HandleMyMails(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !h.isAdmin(ctx.EffectiveUser.Id) {
+		return nil
+	}
 	userID := ctx.EffectiveUser.Id
 	dbCtx := context.Background()
 

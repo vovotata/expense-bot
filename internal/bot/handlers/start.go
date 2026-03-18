@@ -16,17 +16,36 @@ import (
 )
 
 type Handler struct {
-	store     storage.Storage
-	fsm       fsm.StateStore
-	adminChat int64
+	store      storage.Storage
+	fsm        fsm.StateStore
+	adminChat  int64
+	adminUsers map[int64]struct{}
 }
 
-func New(store storage.Storage, fsmStore fsm.StateStore, adminChat int64) *Handler {
-	return &Handler{
-		store:     store,
-		fsm:       fsmStore,
-		adminChat: adminChat,
+func New(store storage.Storage, fsmStore fsm.StateStore, adminChat int64, adminUserIDs []int64) *Handler {
+	admins := make(map[int64]struct{}, len(adminUserIDs))
+	for _, id := range adminUserIDs {
+		admins[id] = struct{}{}
 	}
+	return &Handler{
+		store:      store,
+		fsm:        fsmStore,
+		adminChat:  adminChat,
+		adminUsers: admins,
+	}
+}
+
+func (h *Handler) isAdmin(userID int64) bool {
+	_, ok := h.adminUsers[userID]
+	return ok
+}
+
+// menuKeyboard returns the appropriate persistent keyboard for the user.
+func (h *Handler) menuKeyboard(userID int64) gotgbot.ReplyKeyboardMarkup {
+	if h.isAdmin(userID) {
+		return keyboards.AdminMenuKeyboard()
+	}
+	return keyboards.UserMenuKeyboard()
 }
 
 func (h *Handler) Start(b *gotgbot.Bot, ctx *ext.Context) error {
@@ -73,22 +92,46 @@ func (h *Handler) startWizard(b *gotgbot.Bot, ctx *ext.Context) error {
 		return fmt.Errorf("start: set FSM: %w", err)
 	}
 
+	// Switch to wizard keyboard (only cancel button)
+	wizardKb := keyboards.WizardKeyboard()
+	_, _ = b.SendMessage(ctx.EffectiveChat.Id,
+		"Заполните заявку на оплату расходов.", &gotgbot.SendMessageOpts{
+			ReplyMarkup: wizardKb,
+		})
+
 	kb := keyboards.ExpenseTypeKeyboard()
 	_, err := b.SendMessage(ctx.EffectiveChat.Id,
-		"Заполните заявку на оплату расходов.\n\nВыберите тип расходника:",
-		&gotgbot.SendMessageOpts{
-			ReplyMarkup: kb,
-		},
+		"Выберите тип расходника:",
+		&gotgbot.SendMessageOpts{ReplyMarkup: kb},
 	)
 	return err
 }
 
 // SendMainMenu sends the persistent ReplyKeyboard menu.
 func (h *Handler) SendMainMenu(b *gotgbot.Bot, ctx *ext.Context) error {
-	kb := keyboards.MainMenuKeyboard()
+	user := ctx.EffectiveUser
+	dbCtx := context.Background()
+
+	// Upsert user in DB
+	_, _ = h.store.UpsertUser(dbCtx, &domain.User{
+		ID:        user.Id,
+		Username:  user.Username,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+	})
+
+	kb := h.menuKeyboard(user.Id)
 	_, err := b.SendMessage(ctx.EffectiveChat.Id,
-		"Добро пожаловать! Выберите действие:",
+		"Выберите действие:",
 		&gotgbot.SendMessageOpts{ReplyMarkup: kb},
 	)
 	return err
+}
+
+// restoreMenu sends back the persistent menu after wizard completes.
+func (h *Handler) restoreMenu(b *gotgbot.Bot, chatID int64, userID int64) {
+	kb := h.menuKeyboard(userID)
+	_, _ = b.SendMessage(chatID, "👇", &gotgbot.SendMessageOpts{
+		ReplyMarkup: kb,
+	})
 }
