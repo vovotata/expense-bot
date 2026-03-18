@@ -62,11 +62,12 @@ func (h *Handler) handleAdminCallback(b *gotgbot.Bot, ctx *ext.Context, data str
 		return nil
 	}
 
-	_, err = h.store.UpdateRequestStatus(context.Background(), reqID, newStatus)
+	updated, err := h.store.UpdateRequestStatus(context.Background(), reqID, newStatus)
 	if err != nil {
 		slog.Error("failed to update request status", "error", err, "request_id", requestIDStr)
 	}
 
+	// Update admin message
 	currentText := ctx.EffectiveMessage.Text
 	if currentText == "" {
 		currentText = ctx.EffectiveMessage.Caption
@@ -82,6 +83,22 @@ func (h *Handler) handleAdminCallback(b *gotgbot.Bot, ctx *ext.Context, data str
 		_, _, _ = ctx.EffectiveMessage.EditText(b, updatedText, &gotgbot.EditMessageTextOpts{
 			ParseMode: "HTML",
 		})
+	}
+
+	// Send feedback to the user who created the request
+	if updated != nil && updated.UserID != 0 {
+		var feedbackText string
+		switch newStatus {
+		case domain.StatusPaid:
+			feedbackText = fmt.Sprintf("💸 Ваша заявка <b>#%s</b> оплачена!", requestIDStr[:8])
+		case domain.StatusRejected:
+			feedbackText = fmt.Sprintf("❌ Ваша заявка <b>#%s</b> отклонена.", requestIDStr[:8])
+		}
+		if feedbackText != "" {
+			_, _ = b.SendMessage(updated.UserID, feedbackText, &gotgbot.SendMessageOpts{
+				ParseMode: "HTML",
+			})
+		}
 	}
 
 	slog.Info("admin status change", "action", action, "request_id", requestIDStr, "status", newStatus)

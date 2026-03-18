@@ -86,9 +86,8 @@ func AdminMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
 
 func ExpenseTypeKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
-		[]string{BtnAgentki, BtnAdpos},
+		[]string{BtnAgentki, BtnAdpos, BtnSetups},
 		[]string{BtnAntique, BtnOther},
-		[]string{BtnSetups},
 		[]string{BtnCancel},
 	)
 }
@@ -108,16 +107,14 @@ func InputKeyboard() gotgbot.ReplyKeyboardMarkup {
 
 func CommentKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
-		[]string{BtnSkip},
-		[]string{BtnBack, BtnCancel},
+		[]string{BtnSkip, BtnBack, BtnCancel},
 	)
 }
 
 func ConfirmKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
 		[]string{BtnSubmit},
-		[]string{BtnEdit},
-		[]string{BtnCancel},
+		[]string{BtnEdit, BtnCancel},
 	)
 }
 

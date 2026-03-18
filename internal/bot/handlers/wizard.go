@@ -119,7 +119,8 @@ func (h *Handler) handlePaymentMethodText(b *gotgbot.Bot, ctx *ext.Context, stat
 }
 
 func (h *Handler) handleAddressText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
-	addr, err := ValidateAddress(text)
+	validate := ChooseAddressValidator(state.PaymentMethod)
+	addr, err := validate(text)
 	if err != nil {
 		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ "+err.Error(), nil)
 		return nil
@@ -404,6 +405,7 @@ func FormatAdminNotification(state *fsm.WizardState, username, firstName string,
 		s += fmt.Sprintf("💬 Комментарий: %s\n", state.Comment)
 	}
 
-	s += fmt.Sprintf("\n🕐 Получено: %s", time.Now().Format("15:04 (02 янв)"))
+	msk := time.FixedZone("MSK", 3*60*60)
+	s += fmt.Sprintf("\n🕐 Получено: %s МСК", time.Now().In(msk).Format("15:04 (02 янв)"))
 	return s
 }
