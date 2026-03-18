@@ -1,0 +1,42 @@
+version: "3.9"
+services:
+  bot:
+    build: { context: ., target: bot }
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  email-watcher:
+    build: { context: ., target: email-watcher }
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      bot: { condition: service_started }
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes: [ pgdata:/var/lib/postgresql/data ]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    ports: [ "5432:5432" ]
+
+  migrate:
+    image: pressly/goose
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes: [ ./migrations:/migrations ]
+    command: >
+      goose -dir /migrations postgres
+      "postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable" up
+
+volumes:
+  pgdata:
