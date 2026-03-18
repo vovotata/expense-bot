@@ -8,7 +8,7 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 )
 
-// Button labels for persistent ReplyKeyboard
+// Common button labels
 const (
 	BtnNewRequest = "📋 Новая заявка"
 	BtnCodes      = "🔑 Коды"
@@ -16,146 +16,136 @@ const (
 	BtnAddMail    = "➕ Добавить почту"
 	BtnDelMail    = "🗑 Удалить почту"
 	BtnCancel     = "❌ Отмена"
+	BtnBack       = "⬅️ Назад"
+	BtnSkip       = "⏭ Пропустить"
+	BtnSubmit     = "✅ Отправить заявку"
+	BtnEdit       = "✏️ Редактировать"
 )
 
-// UserMenuKeyboard — for regular users: only 2 buttons.
+// Expense type button labels
+const (
+	BtnAgentki  = "Агентки"
+	BtnAdpos    = "Адпос"
+	BtnAntique  = "Сервис в Антике"
+	BtnOther    = "Другие сервисы"
+	BtnSetups   = "Сетапы"
+)
+
+// Payment method button labels
+const (
+	BtnUSDT = "USDT"
+	BtnTRX  = "TRX"
+	BtnCard = "Карта"
+)
+
+// Edit field button labels
+const (
+	BtnEditType    = "Тип расходника"
+	BtnEditPayment = "Способ оплаты"
+	BtnEditAddress = "Адрес/Реквизиты"
+	BtnEditAmount  = "Сумма"
+	BtnEditAccount = "Аккаунт"
+	BtnEditComment = "Комментарий"
+	BtnEditBack    = "⬅️ Назад к сводке"
+)
+
+func reply(rows ...[]string) gotgbot.ReplyKeyboardMarkup {
+	var kb [][]gotgbot.KeyboardButton
+	for _, row := range rows {
+		var btnRow []gotgbot.KeyboardButton
+		for _, text := range row {
+			btnRow = append(btnRow, gotgbot.KeyboardButton{Text: text})
+		}
+		kb = append(kb, btnRow)
+	}
+	return gotgbot.ReplyKeyboardMarkup{
+		Keyboard:       kb,
+		ResizeKeyboard: true,
+		IsPersistent:   true,
+	}
+}
+
+// --- Menu keyboards ---
+
 func UserMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
-	return gotgbot.ReplyKeyboardMarkup{
-		Keyboard: [][]gotgbot.KeyboardButton{
-			{{Text: BtnNewRequest}},
-			{{Text: BtnCodes}},
-		},
-		ResizeKeyboard: true,
-		IsPersistent:   true,
-	}
+	return reply(
+		[]string{BtnNewRequest},
+		[]string{BtnCodes},
+	)
 }
 
-// AdminMenuKeyboard — for admins: full access including email management.
 func AdminMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
-	return gotgbot.ReplyKeyboardMarkup{
-		Keyboard: [][]gotgbot.KeyboardButton{
-			{{Text: BtnNewRequest}},
-			{{Text: BtnCodes}, {Text: BtnMyMails}},
-			{{Text: BtnAddMail}, {Text: BtnDelMail}},
-		},
-		ResizeKeyboard: true,
-		IsPersistent:   true,
-	}
+	return reply(
+		[]string{BtnNewRequest},
+		[]string{BtnCodes, BtnMyMails},
+		[]string{BtnAddMail, BtnDelMail},
+	)
 }
 
-// WizardKeyboard — during active wizard, show only cancel.
-func WizardKeyboard() gotgbot.ReplyKeyboardMarkup {
-	return gotgbot.ReplyKeyboardMarkup{
-		Keyboard: [][]gotgbot.KeyboardButton{
-			{{Text: BtnCancel}},
-		},
-		ResizeKeyboard: true,
-		IsPersistent:   true,
-	}
+// --- Wizard step keyboards ---
+
+func ExpenseTypeKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnAgentki, BtnAdpos},
+		[]string{BtnAntique, BtnOther},
+		[]string{BtnSetups},
+		[]string{BtnCancel},
+	)
 }
 
-func ExpenseTypeKeyboard() gotgbot.InlineKeyboardMarkup {
-	return gotgbot.InlineKeyboardMarkup{
-		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
-			{
-				{Text: "Агентки", CallbackData: "type:agentki"},
-				{Text: "Адпос", CallbackData: "type:adpos"},
-			},
-			{
-				{Text: "Сервис в Антике", CallbackData: "type:antique_service"},
-				{Text: "Другие сервисы", CallbackData: "type:other_service"},
-			},
-			{
-				{Text: "Сетапы", CallbackData: "type:setups"},
-			},
-		},
-	}
+func PaymentMethodKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnUSDT, BtnTRX, BtnCard},
+		[]string{BtnBack, BtnCancel},
+	)
 }
 
-func PaymentMethodKeyboard() gotgbot.InlineKeyboardMarkup {
-	return gotgbot.InlineKeyboardMarkup{
-		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
-			{
-				{Text: "USDT", CallbackData: "pay:usdt"},
-				{Text: "TRX", CallbackData: "pay:trx"},
-				{Text: "Карта", CallbackData: "pay:card"},
-			},
-		},
-	}
+func InputKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnBack, BtnCancel},
+	)
 }
 
-// ConfirmKeyboard — destructive "Отменить" on a separate row.
-func ConfirmKeyboard() gotgbot.InlineKeyboardMarkup {
-	return gotgbot.InlineKeyboardMarkup{
-		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
-			{
-				{Text: "✅ Отправить заявку", CallbackData: "confirm:yes"},
-			},
-			{
-				{Text: "✏️ Редактировать", CallbackData: "confirm:edit"},
-			},
-			{
-				{Text: "❌ Отменить", CallbackData: "confirm:cancel"},
-			},
-		},
-	}
+func CommentKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnSkip},
+		[]string{BtnBack, BtnCancel},
+	)
 }
 
-// CommentSkipKeyboard adds a skip button for optional comment.
-func CommentSkipKeyboard() gotgbot.InlineKeyboardMarkup {
-	return gotgbot.InlineKeyboardMarkup{
-		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
-			{
-				{Text: "⏭ Пропустить", CallbackData: "skip:comment"},
-			},
-		},
-	}
+func ConfirmKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnSubmit},
+		[]string{BtnEdit},
+		[]string{BtnCancel},
+	)
 }
 
-// ConfirmOverwriteKeyboard asks user to confirm overwriting active session.
-func ConfirmOverwriteKeyboard() gotgbot.InlineKeyboardMarkup {
-	return gotgbot.InlineKeyboardMarkup{
-		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
-			{
-				{Text: "Да, начать новую", CallbackData: "overwrite:yes"},
-				{Text: "Нет, продолжить", CallbackData: "overwrite:no"},
-			},
-		},
-	}
-}
-
-func EditFieldKeyboard(flowType string) gotgbot.InlineKeyboardMarkup {
-	var rows [][]gotgbot.InlineKeyboardButton
-
-	rows = append(rows, []gotgbot.InlineKeyboardButton{
-		{Text: "Тип расходника", CallbackData: "edit:type"},
-	})
-
+func EditFieldKeyboard(flowType string) gotgbot.ReplyKeyboardMarkup {
 	if flowType == "A" {
-		rows = append(rows, []gotgbot.InlineKeyboardButton{
-			{Text: "Способ оплаты", CallbackData: "edit:payment"},
-			{Text: "Адрес/Реквизиты", CallbackData: "edit:address"},
-		})
-		rows = append(rows, []gotgbot.InlineKeyboardButton{
-			{Text: "Сумма", CallbackData: "edit:amount"},
-		})
-	} else {
-		rows = append(rows, []gotgbot.InlineKeyboardButton{
-			{Text: "Аккаунт", CallbackData: "edit:account"},
-		})
+		return reply(
+			[]string{BtnEditType},
+			[]string{BtnEditPayment, BtnEditAddress},
+			[]string{BtnEditAmount, BtnEditComment},
+			[]string{BtnEditBack},
+		)
 	}
-
-	rows = append(rows, []gotgbot.InlineKeyboardButton{
-		{Text: "Комментарий", CallbackData: "edit:comment"},
-	})
-	rows = append(rows, []gotgbot.InlineKeyboardButton{
-		{Text: "⬅️ Назад к сводке", CallbackData: "edit:back"},
-	})
-
-	return gotgbot.InlineKeyboardMarkup{InlineKeyboard: rows}
+	return reply(
+		[]string{BtnEditType},
+		[]string{BtnEditAccount, BtnEditComment},
+		[]string{BtnEditBack},
+	)
 }
 
-// AdminRequestKeyboard — "Оплачено" and "Отклонить" on separate rows.
+func ConfirmOverwriteKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{"Да, начать новую"},
+		[]string{"Нет, продолжить"},
+	)
+}
+
+// --- Admin inline keyboards (these stay inline — they're in the admin GROUP chat) ---
+
 func AdminRequestKeyboard(requestID string) gotgbot.InlineKeyboardMarkup {
 	return gotgbot.InlineKeyboardMarkup{
 		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
@@ -179,7 +169,6 @@ func EmailAccountsKeyboard(accounts []EmailAccountInfo) gotgbot.InlineKeyboardMa
 	return gotgbot.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// CurrencyLabel returns the display label for amount based on payment method.
 func CurrencyLabel(pm domain.PaymentMethod) string {
 	switch pm {
 	case domain.PaymentUSDT:

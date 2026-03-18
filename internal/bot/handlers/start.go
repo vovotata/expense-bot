@@ -63,15 +63,10 @@ func (h *Handler) Start(b *gotgbot.Bot, ctx *ext.Context) error {
 		slog.Error("failed to upsert user", "error", err, "user_id", user.Id)
 	}
 
-	// Check if there's an active session
+	// Check if there's an active session — just overwrite, user explicitly clicked "Новая заявка"
 	existing, _ := h.fsm.Get(dbCtx, user.Id)
 	if existing != nil && existing.CurrentStep != fsm.StepIdle {
-		kb := keyboards.ConfirmOverwriteKeyboard()
-		_, err = b.SendMessage(ctx.EffectiveChat.Id,
-			"У вас есть незавершённая заявка. Начать новую? (старая будет удалена)",
-			&gotgbot.SendMessageOpts{ReplyMarkup: kb},
-		)
-		return err
+		_ = h.fsm.Delete(dbCtx, user.Id)
 	}
 
 	return h.startWizard(b, ctx)
@@ -92,16 +87,9 @@ func (h *Handler) startWizard(b *gotgbot.Bot, ctx *ext.Context) error {
 		return fmt.Errorf("start: set FSM: %w", err)
 	}
 
-	// Switch to wizard keyboard (only cancel button)
-	wizardKb := keyboards.WizardKeyboard()
-	_, _ = b.SendMessage(ctx.EffectiveChat.Id,
-		"Заполните заявку на оплату расходов.", &gotgbot.SendMessageOpts{
-			ReplyMarkup: wizardKb,
-		})
-
 	kb := keyboards.ExpenseTypeKeyboard()
 	_, err := b.SendMessage(ctx.EffectiveChat.Id,
-		"Выберите тип расходника:",
+		"Заполните заявку на оплату расходов.\n\nВыберите тип расходника:",
 		&gotgbot.SendMessageOpts{ReplyMarkup: kb},
 	)
 	return err

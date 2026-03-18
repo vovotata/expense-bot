@@ -13,12 +13,12 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 )
 
-// HandleTextMessage processes text input during wizard steps,
-// and also routes persistent keyboard button presses.
+// HandleTextMessage routes all text: menu buttons, wizard input, wizard buttons.
 func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 	text := ctx.EffectiveMessage.Text
+	userID := ctx.EffectiveUser.Id
 
-	// Route persistent keyboard buttons
+	// Menu buttons (always available)
 	switch text {
 	case keyboards.BtnNewRequest:
 		return h.Start(b, ctx)
@@ -30,13 +30,10 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 		return h.HandleAddMail(b, ctx)
 	case keyboards.BtnDelMail:
 		return h.HandleDelMail(b, ctx)
-	case keyboards.BtnCancel:
-		return h.handleCancelFromKeyboard(b, ctx)
 	}
 
-	userID := ctx.EffectiveUser.Id
+	// Check FSM state
 	dbCtx := context.Background()
-
 	state, err := h.fsm.Get(dbCtx, userID)
 	if err != nil {
 		return fmt.Errorf("wizard.text: get FSM: %w", err)
@@ -45,51 +42,178 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 		return nil // no active wizard
 	}
 
+	// Global wizard buttons
+	switch text {
+	case keyboards.BtnCancel:
+		return h.cancelWizard(b, ctx, userID)
+	case keyboards.BtnBack:
+		return h.goBack(b, ctx, state)
+	}
+
+	// Route by current step
 	switch state.CurrentStep {
+	case fsm.StepExpenseType:
+		return h.handleExpenseTypeText(b, ctx, state, text)
+	case fsm.StepPaymentMethod:
+		return h.handlePaymentMethodText(b, ctx, state, text)
 	case fsm.StepAddress:
-		addr, err := ValidateAddress(text)
-		if err != nil {
-			_, _ = ctx.EffectiveMessage.Reply(b, "❌ "+err.Error(), nil)
-			return nil
-		}
-		state.Address = addr
-		state.AddressPhoto = ""
-
+		return h.handleAddressText(b, ctx, state, text)
 	case fsm.StepAmount:
-		amt, err := ValidateAmount(text)
-		if err != nil {
-			_, _ = ctx.EffectiveMessage.Reply(b, "❌ "+err.Error(), nil)
-			return nil
-		}
-		state.Amount = amt
-
+		return h.handleAmountText(b, ctx, state, text)
 	case fsm.StepAntiqueAccount:
-		acct, err := ValidateAccount(text)
-		if err != nil {
-			_, _ = ctx.EffectiveMessage.Reply(b, "❌ "+err.Error(), nil)
-			return nil
-		}
-		state.AntiqueAcct = acct
-
+		return h.handleAccountText(b, ctx, state, text)
 	case fsm.StepComment:
-		comment, err := ValidateComment(text)
-		if err != nil {
-			_, _ = ctx.EffectiveMessage.Reply(b, "❌ "+err.Error(), nil)
-			return nil
-		}
-		state.Comment = comment
-
+		return h.handleCommentText(b, ctx, state, text)
+	case fsm.StepConfirm:
+		return h.handleConfirmText(b, ctx, state, text)
 	default:
-		return nil // not expecting text at this step
+		return nil
+	}
+}
+
+func (h *Handler) handleExpenseTypeText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	var expType domain.ExpenseType
+	switch text {
+	case keyboards.BtnAgentki:
+		expType = domain.ExpenseAgentki
+	case keyboards.BtnAdpos:
+		expType = domain.ExpenseAdpos
+	case keyboards.BtnAntique:
+		expType = domain.ExpenseAntiqueService
+	case keyboards.BtnOther:
+		expType = domain.ExpenseOtherService
+	case keyboards.BtnSetups:
+		expType = domain.ExpenseSetups
+	default:
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Выберите тип из кнопок ниже.", nil)
+		return nil
 	}
 
-	// Advance to next step
+	state.ExpenseType = expType
+	if expType == domain.ExpenseAntiqueService {
+		state.FlowType = "B"
+	} else {
+		state.FlowType = "A"
+	}
 	state.CurrentStep = state.NextStep()
-	if err := h.fsm.Set(dbCtx, state); err != nil {
-		return fmt.Errorf("wizard.text: set FSM: %w", err)
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) handlePaymentMethodText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	var pm domain.PaymentMethod
+	switch text {
+	case keyboards.BtnUSDT:
+		pm = domain.PaymentUSDT
+	case keyboards.BtnTRX:
+		pm = domain.PaymentTRX
+	case keyboards.BtnCard:
+		pm = domain.PaymentCard
+	default:
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Выберите способ оплаты из кнопок ниже.", nil)
+		return nil
 	}
 
-	return h.sendStepMessage(b, ctx, state)
+	state.PaymentMethod = pm
+	state.CurrentStep = state.NextStep()
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) handleAddressText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	addr, err := ValidateAddress(text)
+	if err != nil {
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ "+err.Error(), nil)
+		return nil
+	}
+	state.Address = addr
+	state.AddressPhoto = ""
+	state.CurrentStep = state.NextStep()
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) handleAmountText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	amt, err := ValidateAmount(text)
+	if err != nil {
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ "+err.Error(), nil)
+		return nil
+	}
+	state.Amount = amt
+	state.CurrentStep = state.NextStep()
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) handleAccountText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	acct, err := ValidateAccount(text)
+	if err != nil {
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ "+err.Error(), nil)
+		return nil
+	}
+	state.AntiqueAcct = acct
+	state.CurrentStep = state.NextStep()
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) handleCommentText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	if text == keyboards.BtnSkip {
+		state.Comment = ""
+		state.CurrentStep = state.NextStep()
+		return h.saveAndSendStep(b, ctx, state)
+	}
+
+	comment, err := ValidateComment(text)
+	if err != nil {
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ "+err.Error(), nil)
+		return nil
+	}
+	state.Comment = comment
+	state.CurrentStep = state.NextStep()
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) handleConfirmText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	switch text {
+	case keyboards.BtnSubmit:
+		return h.submitRequest(b, ctx, state)
+	case keyboards.BtnEdit:
+		return h.showEditMenu(b, ctx, state)
+	case keyboards.BtnCancel:
+		return h.cancelWizard(b, ctx, ctx.EffectiveUser.Id)
+	// Edit field buttons
+	case keyboards.BtnEditType:
+		state.CurrentStep = fsm.StepExpenseType
+		return h.saveAndSendStep(b, ctx, state)
+	case keyboards.BtnEditPayment:
+		state.CurrentStep = fsm.StepPaymentMethod
+		state.Address = ""
+		state.AddressPhoto = ""
+		state.Amount = ""
+		return h.saveAndSendStep(b, ctx, state)
+	case keyboards.BtnEditAddress:
+		state.CurrentStep = fsm.StepAddress
+		return h.saveAndSendStep(b, ctx, state)
+	case keyboards.BtnEditAmount:
+		state.CurrentStep = fsm.StepAmount
+		return h.saveAndSendStep(b, ctx, state)
+	case keyboards.BtnEditAccount:
+		state.CurrentStep = fsm.StepAntiqueAccount
+		return h.saveAndSendStep(b, ctx, state)
+	case keyboards.BtnEditComment:
+		state.CurrentStep = fsm.StepComment
+		return h.saveAndSendStep(b, ctx, state)
+	case keyboards.BtnEditBack:
+		state.CurrentStep = fsm.StepConfirm
+		return h.saveAndSendStep(b, ctx, state)
+	default:
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Выберите действие из кнопок ниже.", nil)
+		return nil
+	}
+}
+
+func (h *Handler) showEditMenu(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
+	kb := keyboards.EditFieldKeyboard(state.FlowType)
+	_, err := b.SendMessage(ctx.EffectiveChat.Id, "Что хотите изменить?", &gotgbot.SendMessageOpts{
+		ReplyMarkup: kb,
+	})
+	return err
 }
 
 // HandlePhoto processes photo input during address step.
@@ -101,110 +225,123 @@ func (h *Handler) HandlePhoto(b *gotgbot.Bot, ctx *ext.Context) error {
 	if err != nil {
 		return fmt.Errorf("wizard.photo: get FSM: %w", err)
 	}
-	if state == nil {
-		return nil
-	}
-
-	if state.CurrentStep != fsm.StepAddress {
+	if state == nil || state.CurrentStep != fsm.StepAddress {
 		return nil
 	}
 
 	msg := ctx.EffectiveMessage
 	var fileID string
-
 	if len(msg.Photo) > 0 {
 		fileID = msg.Photo[len(msg.Photo)-1].FileId
 	} else if msg.Document != nil {
 		fileID = msg.Document.FileId
 	}
-
 	if fileID == "" {
-		_, _ = msg.Reply(b, "❌ Не удалось получить фото. Попробуйте снова.", nil)
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Не удалось получить фото. Попробуйте снова.", nil)
 		return nil
 	}
 
 	state.AddressPhoto = fileID
 	state.Address = ""
 	state.CurrentStep = state.NextStep()
+	return h.saveAndSendStep(b, ctx, state)
+}
 
-	if err := h.fsm.Set(dbCtx, state); err != nil {
-		return fmt.Errorf("wizard.photo: set FSM: %w", err)
+// --- helpers ---
+
+func (h *Handler) saveAndSendStep(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
+	if err := h.fsm.Set(context.Background(), state); err != nil {
+		return fmt.Errorf("wizard: set FSM: %w", err)
 	}
-
 	return h.sendStepMessage(b, ctx, state)
 }
 
-// sendStepMessage sends the appropriate prompt for the current step.
+func (h *Handler) goBack(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
+	prev := state.PrevStep()
+	if prev == fsm.StepIdle {
+		return h.cancelWizard(b, ctx, ctx.EffectiveUser.Id)
+	}
+	state.CurrentStep = prev
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) cancelWizard(b *gotgbot.Bot, ctx *ext.Context, userID int64) error {
+	_ = h.fsm.Delete(context.Background(), userID)
+	h.restoreMenu(b, ctx.EffectiveChat.Id, userID)
+	_, err := b.SendMessage(ctx.EffectiveChat.Id, "❌ Заявка отменена.", nil)
+	return err
+}
+
 func (h *Handler) sendStepMessage(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
-	chat := ctx.EffectiveChat
+	chatID := ctx.EffectiveChat.Id
 
 	switch state.CurrentStep {
 	case fsm.StepExpenseType:
 		kb := keyboards.ExpenseTypeKeyboard()
-		_, err := b.SendMessage(chat.Id, "Выберите тип расходника:", &gotgbot.SendMessageOpts{
-			ReplyMarkup: kb,
-		})
+		_, err := b.SendMessage(chatID, "Выберите тип расходника:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepPaymentMethod:
 		kb := keyboards.PaymentMethodKeyboard()
-		_, err := b.SendMessage(chat.Id, "Выберите способ оплаты:", &gotgbot.SendMessageOpts{
-			ReplyMarkup: kb,
-		})
+		_, err := b.SendMessage(chatID, "Выберите способ оплаты:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepAddress:
+		kb := keyboards.InputKeyboard()
 		var prompt string
 		if state.PaymentMethod == domain.PaymentCard {
-			prompt = "Отправьте реквизиты карты / номер карты (текстом или скриншотом):"
+			prompt = "Отправьте реквизиты карты (текстом или скриншотом):"
 		} else {
-			prompt = fmt.Sprintf("Отправьте адрес %s-кошелька (текстом или фото QR-кода):", state.PaymentMethod.Label())
+			prompt = fmt.Sprintf("Отправьте адрес %s-кошелька (текстом или фото QR):", state.PaymentMethod.Label())
 		}
-		_, err := b.SendMessage(chat.Id, prompt, nil)
+		_, err := b.SendMessage(chatID, prompt, &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepAmount:
+		kb := keyboards.InputKeyboard()
 		currency := keyboards.CurrencyLabel(state.PaymentMethod)
-		prompt := fmt.Sprintf("Введите сумму в %s (например: 12.452):", currency)
-		_, err := b.SendMessage(chat.Id, prompt, nil)
+		_, err := b.SendMessage(chatID, fmt.Sprintf("Введите сумму в %s (например: 12.452):", currency),
+			&gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepAntiqueAccount:
-		_, err := b.SendMessage(chat.Id, "Введите аккаунт в Антике:", nil)
+		kb := keyboards.InputKeyboard()
+		_, err := b.SendMessage(chatID, "Введите аккаунт в Антике:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepComment:
+		kb := keyboards.CommentKeyboard()
 		var prompt string
 		if state.FlowType == "B" {
-			prompt = "Добавьте комментарий (сколько осталось поинтов, за какой срок пополнить):"
+			prompt = "Добавьте комментарий (сколько поинтов, за какой срок):"
 		} else {
 			prompt = "Добавьте комментарий (срок оплаты, детали):"
 		}
-		kb := keyboards.CommentSkipKeyboard()
-		_, err := b.SendMessage(chat.Id, prompt, &gotgbot.SendMessageOpts{
-			ReplyMarkup: kb,
-		})
+		_, err := b.SendMessage(chatID, prompt, &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepConfirm:
-		return h.sendSummary(b, chat.Id, state)
+		return h.sendSummary(b, chatID, state)
 
 	default:
 		return nil
 	}
 }
 
-// sendSummary shows the request summary for confirmation.
 func (h *Handler) sendSummary(b *gotgbot.Bot, chatID int64, state *fsm.WizardState) error {
 	summary := formatSummary(state)
 	kb := keyboards.ConfirmKeyboard()
 
 	if state.AddressPhoto != "" {
 		_, err := b.SendPhoto(chatID, gotgbot.InputFileByID(state.AddressPhoto), &gotgbot.SendPhotoOpts{
-			Caption:     summary,
-			ParseMode:   "HTML",
-			ReplyMarkup: kb,
+			Caption:   summary,
+			ParseMode: "HTML",
 		})
+		if err != nil {
+			return err
+		}
+		// Send confirm keyboard separately (ReplyKeyboard can't be attached to photo caption)
+		_, err = b.SendMessage(chatID, "Выберите действие:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 	}
 
@@ -215,17 +352,8 @@ func (h *Handler) sendSummary(b *gotgbot.Bot, chatID int64, state *fsm.WizardSta
 	return err
 }
 
-func (h *Handler) handleCancelFromKeyboard(b *gotgbot.Bot, ctx *ext.Context) error {
-	userID := ctx.EffectiveUser.Id
-	_ = h.fsm.Delete(context.Background(), userID)
-	h.restoreMenu(b, ctx.EffectiveChat.Id, userID)
-	_, err := b.SendMessage(ctx.EffectiveChat.Id, "❌ Заявка отменена.", nil)
-	return err
-}
-
 func formatSummary(state *fsm.WizardState) string {
-	expType := state.ExpenseType.Label()
-	s := fmt.Sprintf("📋 <b>Ваша заявка:</b>\n\n• Тип: %s\n", expType)
+	s := fmt.Sprintf("📋 <b>Ваша заявка:</b>\n\n• Тип: %s\n", state.ExpenseType.Label())
 
 	if state.FlowType == "A" {
 		currency := keyboards.CurrencyLabel(state.PaymentMethod)
@@ -249,17 +377,14 @@ func formatSummary(state *fsm.WizardState) string {
 	return s
 }
 
-// FormatAdminNotification formats the request for admin chat with timestamp.
 func FormatAdminNotification(state *fsm.WizardState, username, firstName string, requestID string) string {
-	expType := state.ExpenseType.Label()
-
 	s := fmt.Sprintf("🆕 <b>Заявка #%s</b>\n\n", requestID[:8])
 	if username != "" {
 		s += fmt.Sprintf("👤 @%s (%s)\n", username, firstName)
 	} else {
 		s += fmt.Sprintf("👤 %s\n", firstName)
 	}
-	s += fmt.Sprintf("📦 Тип: %s\n", expType)
+	s += fmt.Sprintf("📦 Тип: %s\n", state.ExpenseType.Label())
 
 	if state.FlowType == "A" {
 		currency := keyboards.CurrencyLabel(state.PaymentMethod)
