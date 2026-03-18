@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"expense-bot/internal/bot/keyboards"
 	"expense-bot/internal/domain"
@@ -12,8 +13,25 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 )
 
-// HandleTextMessage processes text input during wizard steps.
+// HandleTextMessage processes text input during wizard steps,
+// and also routes persistent keyboard button presses.
 func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
+	text := ctx.EffectiveMessage.Text
+
+	// Route persistent keyboard buttons
+	switch text {
+	case keyboards.BtnNewRequest:
+		return h.Start(b, ctx)
+	case keyboards.BtnCodes:
+		return h.HandleCodes(b, ctx)
+	case keyboards.BtnMyMails:
+		return h.HandleMyMails(b, ctx)
+	case keyboards.BtnAddMail:
+		return h.HandleAddMail(b, ctx)
+	case keyboards.BtnDelMail:
+		return h.HandleDelMail(b, ctx)
+	}
+
 	userID := ctx.EffectiveUser.Id
 	dbCtx := context.Background()
 
@@ -24,8 +42,6 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 	if state == nil {
 		return nil // no active wizard
 	}
-
-	text := ctx.EffectiveMessage.Text
 
 	switch state.CurrentStep {
 	case fsm.StepAddress:
@@ -95,7 +111,6 @@ func (h *Handler) HandlePhoto(b *gotgbot.Bot, ctx *ext.Context) error {
 	var fileID string
 
 	if len(msg.Photo) > 0 {
-		// Take the largest photo
 		fileID = msg.Photo[len(msg.Photo)-1].FileId
 	} else if msg.Document != nil {
 		fileID = msg.Document.FileId
@@ -141,13 +156,15 @@ func (h *Handler) sendStepMessage(b *gotgbot.Bot, ctx *ext.Context, state *fsm.W
 		if state.PaymentMethod == domain.PaymentCard {
 			prompt = "Отправьте реквизиты карты / номер карты (текстом или скриншотом):"
 		} else {
-			prompt = "Отправьте адрес кошелька (текстом или фото QR-кода):"
+			prompt = fmt.Sprintf("Отправьте адрес %s-кошелька (текстом или фото QR-кода):", state.PaymentMethod.Label())
 		}
 		_, err := b.SendMessage(chat.Id, prompt, nil)
 		return err
 
 	case fsm.StepAmount:
-		_, err := b.SendMessage(chat.Id, "Введите точную сумму (например: 12.452):", nil)
+		currency := keyboards.CurrencyLabel(state.PaymentMethod)
+		prompt := fmt.Sprintf("Введите сумму в %s (например: 12.452):", currency)
+		_, err := b.SendMessage(chat.Id, prompt, nil)
 		return err
 
 	case fsm.StepAntiqueAccount:
@@ -157,11 +174,14 @@ func (h *Handler) sendStepMessage(b *gotgbot.Bot, ctx *ext.Context, state *fsm.W
 	case fsm.StepComment:
 		var prompt string
 		if state.FlowType == "B" {
-			prompt = "Добавьте комментарий (сколько осталось поинтов, за какой срок пополнить и т.д.):"
+			prompt = "Добавьте комментарий (сколько осталось поинтов, за какой срок пополнить):"
 		} else {
 			prompt = "Добавьте комментарий (срок оплаты, детали):"
 		}
-		_, err := b.SendMessage(chat.Id, prompt, nil)
+		kb := keyboards.CommentSkipKeyboard()
+		_, err := b.SendMessage(chat.Id, prompt, &gotgbot.SendMessageOpts{
+			ReplyMarkup: kb,
+		})
 		return err
 
 	case fsm.StepConfirm:
@@ -198,24 +218,28 @@ func formatSummary(state *fsm.WizardState) string {
 	s := fmt.Sprintf("📋 <b>Ваша заявка:</b>\n\n• Тип: %s\n", expType)
 
 	if state.FlowType == "A" {
+		currency := keyboards.CurrencyLabel(state.PaymentMethod)
 		s += fmt.Sprintf("• Оплата: %s\n", state.PaymentMethod.Label())
 		if state.Address != "" {
-			s += fmt.Sprintf("• Адрес: %s\n", state.Address)
+			s += fmt.Sprintf("• Адрес: <code>%s</code>\n", state.Address)
 		}
 		if state.AddressPhoto != "" {
 			s += "• Адрес: [фото выше]\n"
 		}
-		s += fmt.Sprintf("• Сумма: %s\n", state.Amount)
+		s += fmt.Sprintf("• Сумма: %s %s\n", state.Amount, currency)
 	} else {
 		s += fmt.Sprintf("• Аккаунт: %s\n", state.AntiqueAcct)
 	}
 
-	s += fmt.Sprintf("• Комментарий: %s\n", state.Comment)
+	if state.Comment != "" {
+		s += fmt.Sprintf("• Комментарий: %s\n", state.Comment)
+	}
+
 	s += "\nВсё верно?"
 	return s
 }
 
-// FormatAdminNotification formats the request for admin chat.
+// FormatAdminNotification formats the request for admin chat with timestamp.
 func FormatAdminNotification(state *fsm.WizardState, username, firstName string, requestID string) string {
 	expType := state.ExpenseType.Label()
 
@@ -228,6 +252,7 @@ func FormatAdminNotification(state *fsm.WizardState, username, firstName string,
 	s += fmt.Sprintf("📦 Тип: %s\n", expType)
 
 	if state.FlowType == "A" {
+		currency := keyboards.CurrencyLabel(state.PaymentMethod)
 		s += fmt.Sprintf("💳 Оплата: %s\n", state.PaymentMethod.Label())
 		if state.Address != "" {
 			s += fmt.Sprintf("📍 Адрес: <code>%s</code>\n", state.Address)
@@ -235,11 +260,15 @@ func FormatAdminNotification(state *fsm.WizardState, username, firstName string,
 		if state.AddressPhoto != "" {
 			s += "📍 Адрес: [см. фото]\n"
 		}
-		s += fmt.Sprintf("💰 Сумма: %s\n", state.Amount)
+		s += fmt.Sprintf("💰 Сумма: %s %s\n", state.Amount, currency)
 	} else {
 		s += fmt.Sprintf("🖥 Аккаунт: %s\n", state.AntiqueAcct)
 	}
 
-	s += fmt.Sprintf("💬 Комментарий: %s\n", state.Comment)
+	if state.Comment != "" {
+		s += fmt.Sprintf("💬 Комментарий: %s\n", state.Comment)
+	}
+
+	s += fmt.Sprintf("\n🕐 Получено: %s", time.Now().Format("15:04 (02 янв)"))
 	return s
 }

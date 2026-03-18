@@ -39,6 +39,10 @@ func (h *Handler) HandleCallback(b *gotgbot.Bot, ctx *ext.Context) error {
 		return h.handleAdminCallback(b, ctx, data)
 	case strings.HasPrefix(data, "delmail:"):
 		return h.handleDeleteMailCallback(b, ctx, strings.TrimPrefix(data, "delmail:"))
+	case strings.HasPrefix(data, "overwrite:"):
+		return h.handleOverwriteCallback(b, ctx, strings.TrimPrefix(data, "overwrite:"))
+	case strings.HasPrefix(data, "skip:"):
+		return h.handleSkipCallback(b, ctx, strings.TrimPrefix(data, "skip:"))
 	default:
 		slog.Warn("unknown callback data", "data", data)
 		return nil
@@ -149,6 +153,10 @@ func (h *Handler) handleEditCallback(b *gotgbot.Bot, ctx *ext.Context, field str
 		state.CurrentStep = fsm.StepExpenseType
 	case "payment":
 		state.CurrentStep = fsm.StepPaymentMethod
+		// Clear dependent fields when changing payment method
+		state.Address = ""
+		state.AddressPhoto = ""
+		state.Amount = ""
 	case "address":
 		state.CurrentStep = fsm.StepAddress
 	case "amount":
@@ -195,8 +203,8 @@ func (h *Handler) submitRequest(b *gotgbot.Bot, ctx *ext.Context, state *fsm.Wiz
 	created, err := h.store.CreateRequest(dbCtx, req)
 	if err != nil {
 		slog.Error("failed to create request", "error", err, "user_id", userID)
-		_, _ = ctx.EffectiveMessage.Delete(b, nil)
-		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Ошибка при сохранении заявки. Попробуйте /start заново.", nil)
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id,
+			"❌ Не удалось отправить заявку. Попробуйте нажать «Отправить» ещё раз.", nil)
 		return nil
 	}
 
@@ -253,12 +261,9 @@ func (h *Handler) handleAdminCallback(b *gotgbot.Bot, ctx *ext.Context, data str
 	var newStatus domain.RequestStatus
 	var statusEmoji string
 	switch action {
-	case "ap":
-		newStatus = domain.StatusApproved
-		statusEmoji = "✅"
 	case "pd":
 		newStatus = domain.StatusPaid
-		statusEmoji = "💰"
+		statusEmoji = "💸"
 	case "rj":
 		newStatus = domain.StatusRejected
 		statusEmoji = "❌"
@@ -306,9 +311,52 @@ func (h *Handler) handleDeleteMailCallback(b *gotgbot.Bot, ctx *ext.Context, idS
 	return nil
 }
 
+func (h *Handler) handleOverwriteCallback(b *gotgbot.Bot, ctx *ext.Context, action string) error {
+	_, _, _ = ctx.EffectiveMessage.EditText(b, ctx.EffectiveMessage.Text, &gotgbot.EditMessageTextOpts{})
+
+	if action == "yes" {
+		return h.startWizard(b, ctx)
+	}
+	// "no" — resume existing session, show current step
+	userID := ctx.EffectiveUser.Id
+	state, _ := h.fsm.Get(context.Background(), userID)
+	if state != nil {
+		return h.sendStepMessage(b, ctx, state)
+	}
+	return nil
+}
+
+func (h *Handler) handleSkipCallback(b *gotgbot.Bot, ctx *ext.Context, field string) error {
+	userID := ctx.EffectiveUser.Id
+	dbCtx := context.Background()
+
+	state, err := h.fsm.Get(dbCtx, userID)
+	if err != nil || state == nil {
+		return h.replyNoSession(b, ctx)
+	}
+
+	switch field {
+	case "comment":
+		if state.CurrentStep != fsm.StepComment {
+			return nil
+		}
+		state.Comment = ""
+		state.CurrentStep = state.NextStep()
+	default:
+		return nil
+	}
+
+	if err := h.fsm.Set(dbCtx, state); err != nil {
+		return fmt.Errorf("callback.skip: set FSM: %w", err)
+	}
+
+	_, _, _ = ctx.EffectiveMessage.EditText(b, "Комментарий: пропущен", nil)
+	return h.sendStepMessage(b, ctx, state)
+}
+
 func (h *Handler) replyNoSession(b *gotgbot.Bot, ctx *ext.Context) error {
 	_, err := b.SendMessage(ctx.EffectiveChat.Id,
-		"Сессия истекла. Начните заново: /start", nil)
+		"Время ожидания истекло, и заявка была сброшена. Нажмите «📋 Новая заявка», чтобы начать снова.", nil)
 	return err
 }
 

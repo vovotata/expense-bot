@@ -16,8 +16,8 @@ import (
 )
 
 type Handler struct {
-	store    storage.Storage
-	fsm      fsm.StateStore
+	store     storage.Storage
+	fsm       fsm.StateStore
 	adminChat int64
 }
 
@@ -44,7 +44,24 @@ func (h *Handler) Start(b *gotgbot.Bot, ctx *ext.Context) error {
 		slog.Error("failed to upsert user", "error", err, "user_id", user.Id)
 	}
 
-	// Initialize FSM state
+	// Check if there's an active session
+	existing, _ := h.fsm.Get(dbCtx, user.Id)
+	if existing != nil && existing.CurrentStep != fsm.StepIdle {
+		kb := keyboards.ConfirmOverwriteKeyboard()
+		_, err = b.SendMessage(ctx.EffectiveChat.Id,
+			"У вас есть незавершённая заявка. Начать новую? (старая будет удалена)",
+			&gotgbot.SendMessageOpts{ReplyMarkup: kb},
+		)
+		return err
+	}
+
+	return h.startWizard(b, ctx)
+}
+
+func (h *Handler) startWizard(b *gotgbot.Bot, ctx *ext.Context) error {
+	user := ctx.EffectiveUser
+	dbCtx := context.Background()
+
 	state := &fsm.WizardState{
 		UserID:       user.Id,
 		CurrentStep:  fsm.StepExpenseType,
@@ -57,8 +74,21 @@ func (h *Handler) Start(b *gotgbot.Bot, ctx *ext.Context) error {
 	}
 
 	kb := keyboards.ExpenseTypeKeyboard()
-	_, err = ctx.EffectiveMessage.Reply(b, "Выберите тип расходника:", &gotgbot.SendMessageOpts{
-		ReplyMarkup: kb,
-	})
+	_, err := b.SendMessage(ctx.EffectiveChat.Id,
+		"Заполните заявку на оплату расходов.\n\nВыберите тип расходника:",
+		&gotgbot.SendMessageOpts{
+			ReplyMarkup: kb,
+		},
+	)
+	return err
+}
+
+// SendMainMenu sends the persistent ReplyKeyboard menu.
+func (h *Handler) SendMainMenu(b *gotgbot.Bot, ctx *ext.Context) error {
+	kb := keyboards.MainMenuKeyboard()
+	_, err := b.SendMessage(ctx.EffectiveChat.Id,
+		"Добро пожаловать! Выберите действие:",
+		&gotgbot.SendMessageOpts{ReplyMarkup: kb},
+	)
 	return err
 }

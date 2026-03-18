@@ -74,7 +74,8 @@ func (b *Bot) registerMiddleware() {
 
 func (b *Bot) registerHandlers() {
 	// Group 0: Command handlers
-	b.dispatcher.AddHandler(handlers.NewCommand("start", b.handler.Start))
+	b.dispatcher.AddHandler(handlers.NewCommand("start", b.handler.SendMainMenu))
+	b.dispatcher.AddHandler(handlers.NewCommand("menu", b.handler.SendMainMenu))
 	b.dispatcher.AddHandler(handlers.NewCommand("addmail", b.handler.HandleAddMail))
 	b.dispatcher.AddHandler(handlers.NewCommand("delmail", b.handler.HandleDelMail))
 	b.dispatcher.AddHandler(handlers.NewCommand("mymails", b.handler.HandleMyMails))
