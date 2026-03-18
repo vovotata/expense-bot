@@ -3,6 +3,7 @@ module expense-bot
 go 1.26.1
 
 require (
+	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.34
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/kelseyhightower/envconfig v1.4.0
