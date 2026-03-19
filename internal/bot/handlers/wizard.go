@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"expense-bot/internal/bot/keyboards"
@@ -359,14 +360,22 @@ func (h *Handler) sendSummary(b *gotgbot.Bot, chatID int64, state *fsm.WizardSta
 	kb := keyboards.ConfirmKeyboard()
 
 	if state.AddressPhoto != "" {
+		// Try sendPhoto first, fall back to sendDocument if file is a document
 		_, err := b.SendPhoto(chatID, gotgbot.InputFileByID(state.AddressPhoto), &gotgbot.SendPhotoOpts{
 			Caption:   summary,
 			ParseMode: "HTML",
 		})
 		if err != nil {
-			return err
+			// Fallback: send as document (user may have sent file instead of photo)
+			_, err = b.SendDocument(chatID, gotgbot.InputFileByID(state.AddressPhoto), &gotgbot.SendDocumentOpts{
+				Caption:   summary,
+				ParseMode: "HTML",
+			})
+			if err != nil {
+				// Last resort: just send text summary without the image
+				slog.Warn("failed to send address photo in summary", "error", err)
+			}
 		}
-		// Send confirm keyboard separately (ReplyKeyboard can't be attached to photo caption)
 		_, err = b.SendMessage(chatID, "Выберите действие:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 	}

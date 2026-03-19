@@ -166,6 +166,14 @@ func (h *Handler) notifyAdmin(b *gotgbot.Bot, state *fsm.WizardState, user *gotg
 			ParseMode:   "HTML",
 			ReplyMarkup: kb,
 		})
+		if err != nil {
+			// Fallback: try as document
+			msg, err = b.SendDocument(h.adminChat, gotgbot.InputFileByID(state.AddressPhoto), &gotgbot.SendDocumentOpts{
+				Caption:     text,
+				ParseMode:   "HTML",
+				ReplyMarkup: kb,
+			})
+		}
 	} else {
 		msg, err = b.SendMessage(h.adminChat, text, &gotgbot.SendMessageOpts{
 			ParseMode:   "HTML",
