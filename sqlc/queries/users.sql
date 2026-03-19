@@ -7,3 +7,6 @@ SELECT * FROM users WHERE id = $1;
 
 -- name: IsUserBlocked :one
 SELECT is_blocked FROM users WHERE id = $1;
+
+-- name: ListAllActiveUsers :many
+SELECT * FROM users WHERE is_blocked = FALSE;

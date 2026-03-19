@@ -41,6 +41,38 @@ func (q *Queries) IsUserBlocked(ctx context.Context, id int64) (bool, error) {
 	return is_blocked, err
 }
 
+const listAllActiveUsers = `-- name: ListAllActiveUsers :many
+SELECT id, username, first_name, last_name, is_blocked, created_at, updated_at FROM users WHERE is_blocked = FALSE
+`
+
+func (q *Queries) ListAllActiveUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, listAllActiveUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.FirstName,
+			&i.LastName,
+			&i.IsBlocked,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertUser = `-- name: UpsertUser :one
 INSERT INTO users (id, username, first_name, last_name) VALUES ($1, $2, $3, $4)
 ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name RETURNING id, username, first_name, last_name, is_blocked, created_at, updated_at

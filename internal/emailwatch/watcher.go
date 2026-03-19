@@ -259,11 +259,15 @@ func (w *Watcher) processNewMessages(ctx context.Context, c *imapclient.Client, 
 				continue
 			}
 
-			// Send notification
-			msgID, err := w.notifier.NotifyCode(acc.UserID, acc.Email, result, time.Now())
-			if err != nil {
-				slog.Error("notify code failed", "error", err)
-				continue
+			// Broadcast to all active users
+			allUsers, _ := w.store.ListAllActiveUsers(ctx)
+			var chatIDs []int64
+			for _, u := range allUsers {
+				chatIDs = append(chatIDs, u.ID)
+			}
+			var msgID int64
+			if len(chatIDs) > 0 {
+				msgID = w.notifier.BroadcastCode(chatIDs, acc.Email, result, time.Now())
 			}
 
 			// Save to DB

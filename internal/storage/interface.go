@@ -13,6 +13,7 @@ type Storage interface {
 	UpsertUser(ctx context.Context, user *domain.User) (*domain.User, error)
 	GetUserByID(ctx context.Context, id int64) (*domain.User, error)
 	IsUserBlocked(ctx context.Context, id int64) (bool, error)
+	ListAllActiveUsers(ctx context.Context) ([]*domain.User, error)
 
 	// Requests
 	CreateRequest(ctx context.Context, req *domain.Request) (*domain.Request, error)
@@ -35,6 +36,7 @@ type Storage interface {
 	// Email codes
 	CreateEmailCode(ctx context.Context, code *domain.EmailCode) (*domain.EmailCode, error)
 	ListRecentCodesByUser(ctx context.Context, userID int64, limit int32) ([]*domain.EmailCode, error)
+	ListRecentCodes(ctx context.Context, limit int32) ([]*domain.EmailCode, error)
 	CodeExistsByBodyHash(ctx context.Context, hash string) (bool, error)
 	DeleteOldCodes(ctx context.Context) (int64, error)
 

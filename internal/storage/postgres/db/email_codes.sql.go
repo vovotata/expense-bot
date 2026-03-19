@@ -80,6 +80,58 @@ func (q *Queries) DeleteOldCodes(ctx context.Context) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const listRecentCodes = `-- name: ListRecentCodes :many
+SELECT ec.id, ec.email_account_id, ec.user_id, ec.sender, ec.subject, ec.code, ec.rule_name, ec.raw_body_hash, ec.tg_message_id, ec.received_at, ec.created_at, ea.email FROM email_codes ec JOIN email_accounts ea ON ec.email_account_id = ea.id ORDER BY ec.received_at DESC LIMIT $1
+`
+
+type ListRecentCodesRow struct {
+	ID             int64              `json:"id"`
+	EmailAccountID int64              `json:"email_account_id"`
+	UserID         int64              `json:"user_id"`
+	Sender         string             `json:"sender"`
+	Subject        pgtype.Text        `json:"subject"`
+	Code           string             `json:"code"`
+	RuleName       pgtype.Text        `json:"rule_name"`
+	RawBodyHash    pgtype.Text        `json:"raw_body_hash"`
+	TgMessageID    pgtype.Int8        `json:"tg_message_id"`
+	ReceivedAt     pgtype.Timestamptz `json:"received_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Email          string             `json:"email"`
+}
+
+func (q *Queries) ListRecentCodes(ctx context.Context, limit int32) ([]ListRecentCodesRow, error) {
+	rows, err := q.db.Query(ctx, listRecentCodes, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentCodesRow{}
+	for rows.Next() {
+		var i ListRecentCodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmailAccountID,
+			&i.UserID,
+			&i.Sender,
+			&i.Subject,
+			&i.Code,
+			&i.RuleName,
+			&i.RawBodyHash,
+			&i.TgMessageID,
+			&i.ReceivedAt,
+			&i.CreatedAt,
+			&i.Email,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentCodesByUser = `-- name: ListRecentCodesByUser :many
 SELECT ec.id, ec.email_account_id, ec.user_id, ec.sender, ec.subject, ec.code, ec.rule_name, ec.raw_body_hash, ec.tg_message_id, ec.received_at, ec.created_at, ea.email FROM email_codes ec JOIN email_accounts ea ON ec.email_account_id = ea.id WHERE ec.user_id = $1 ORDER BY ec.received_at DESC LIMIT $2
 `

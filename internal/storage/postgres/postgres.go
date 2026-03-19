@@ -83,6 +83,18 @@ func (s *Store) IsUserBlocked(ctx context.Context, id int64) (bool, error) {
 	return blocked, nil
 }
 
+func (s *Store) ListAllActiveUsers(ctx context.Context) ([]*domain.User, error) {
+	rows, err := s.queries.ListAllActiveUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("storage.ListAllActiveUsers: %w", err)
+	}
+	result := make([]*domain.User, len(rows))
+	for i, row := range rows {
+		result[i] = userFromDB(row)
+	}
+	return result, nil
+}
+
 // --- Requests ---
 
 func (s *Store) CreateRequest(ctx context.Context, req *domain.Request) (*domain.Request, error) {
@@ -325,6 +337,29 @@ func (s *Store) ListRecentCodesByUser(ctx context.Context, userID int64, limit i
 	})
 	if err != nil {
 		return nil, fmt.Errorf("storage.ListRecentCodesByUser: %w", err)
+	}
+	result := make([]*domain.EmailCode, len(rows))
+	for i, row := range rows {
+		result[i] = &domain.EmailCode{
+			ID:             row.ID,
+			EmailAccountID: row.EmailAccountID,
+			UserID:         row.UserID,
+			Sender:         row.Sender,
+			Subject:        textStr(row.Subject),
+			Code:           row.Code,
+			RuleName:       textStr(row.RuleName),
+			ReceivedAt:     row.ReceivedAt.Time,
+			CreatedAt:      row.CreatedAt.Time,
+			Email:          row.Email,
+		}
+	}
+	return result, nil
+}
+
+func (s *Store) ListRecentCodes(ctx context.Context, limit int32) ([]*domain.EmailCode, error) {
+	rows, err := s.queries.ListRecentCodes(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("storage.ListRecentCodes: %w", err)
 	}
 	result := make([]*domain.EmailCode, len(rows))
 	for i, row := range rows {

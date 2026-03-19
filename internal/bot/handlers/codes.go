@@ -300,12 +300,11 @@ func (h *Handler) HandleMyMails(b *gotgbot.Bot, ctx *ext.Context) error {
 	return err
 }
 
-// HandleCodes shows the last 10 intercepted codes.
+// HandleCodes shows the last 10 intercepted codes (shared across all users).
 func (h *Handler) HandleCodes(b *gotgbot.Bot, ctx *ext.Context) error {
-	userID := ctx.EffectiveUser.Id
 	dbCtx := context.Background()
 
-	codes, err := h.store.ListRecentCodesByUser(dbCtx, userID, 10)
+	codes, err := h.store.ListRecentCodes(dbCtx, 10)
 	if err != nil {
 		slog.Error("failed to list codes", "error", err)
 		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Ошибка. Попробуйте позже.", nil)
@@ -316,11 +315,12 @@ func (h *Handler) HandleCodes(b *gotgbot.Bot, ctx *ext.Context) error {
 		return nil
 	}
 
+	msk := time.FixedZone("MSK", 3*60*60)
 	var sb strings.Builder
 	sb.WriteString("🔑 <b>Последние коды:</b>\n\n")
 	for _, code := range codes {
-		sb.WriteString(fmt.Sprintf("📧 %s\n📋 От: %s\n🔢 Код: <code>%s</code>\n⏱ %s\n\n",
-			code.Email, code.Sender, code.Code, code.ReceivedAt.Format("15:04:05")))
+		sb.WriteString(fmt.Sprintf("📧 %s\n📋 От: %s\n🔢 Код: <code>%s</code>\n⏱ %s МСК\n\n",
+			code.Email, code.Sender, code.Code, code.ReceivedAt.In(msk).Format("15:04:05")))
 	}
 
 	_, err = b.SendMessage(ctx.EffectiveChat.Id, sb.String(), &gotgbot.SendMessageOpts{ParseMode: "HTML"})

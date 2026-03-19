@@ -5,6 +5,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 -- name: ListRecentCodesByUser :many
 SELECT ec.*, ea.email FROM email_codes ec JOIN email_accounts ea ON ec.email_account_id = ea.id WHERE ec.user_id = $1 ORDER BY ec.received_at DESC LIMIT $2;
 
+-- name: ListRecentCodes :many
+SELECT ec.*, ea.email FROM email_codes ec JOIN email_accounts ea ON ec.email_account_id = ea.id ORDER BY ec.received_at DESC LIMIT $1;
+
 -- name: CodeExistsByBodyHash :one
 SELECT EXISTS(SELECT 1 FROM email_codes WHERE raw_body_hash = $1) AS exists;
 
