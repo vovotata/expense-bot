@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"expense-bot/internal/bot/keyboards"
 	"expense-bot/internal/domain"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
@@ -36,6 +37,11 @@ func (h *Handler) HandleCallback(b *gotgbot.Bot, ctx *ext.Context) error {
 }
 
 func (h *Handler) handleAdminCallback(b *gotgbot.Bot, ctx *ext.Context, data string) error {
+	// Auth check — only admins can change request status
+	if !h.isAdmin(ctx.EffectiveUser.Id) {
+		return nil
+	}
+
 	parts := strings.SplitN(data, ":", 3)
 	if len(parts) < 3 {
 		return nil
@@ -62,37 +68,42 @@ func (h *Handler) handleAdminCallback(b *gotgbot.Bot, ctx *ext.Context, data str
 		return nil
 	}
 
+	// Update DB — stop if it fails
 	updated, err := h.store.UpdateRequestStatus(context.Background(), reqID, newStatus)
 	if err != nil {
 		slog.Error("failed to update request status", "error", err, "request_id", requestIDStr)
+		return nil
 	}
 
-	// Update admin message
+	// Update admin message text + remove buttons to prevent double-click
 	currentText := ctx.EffectiveMessage.Text
 	if currentText == "" {
 		currentText = ctx.EffectiveMessage.Caption
 	}
 	updatedText := currentText + fmt.Sprintf("\n\n%s Статус: <b>%s</b>", statusEmoji, newStatus.Label())
+	emptyKb := gotgbot.InlineKeyboardMarkup{}
 
 	if ctx.EffectiveMessage.Caption != "" {
 		_, _, _ = ctx.EffectiveMessage.EditCaption(b, &gotgbot.EditMessageCaptionOpts{
-			Caption:   updatedText,
-			ParseMode: "HTML",
+			Caption:     updatedText,
+			ParseMode:   "HTML",
+			ReplyMarkup: emptyKb,
 		})
 	} else {
 		_, _, _ = ctx.EffectiveMessage.EditText(b, updatedText, &gotgbot.EditMessageTextOpts{
-			ParseMode: "HTML",
+			ParseMode:   "HTML",
+			ReplyMarkup: emptyKb,
 		})
 	}
 
-	// Send feedback to the user who created the request
+	// Send feedback to the user
 	if updated != nil && updated.UserID != 0 {
 		var feedbackText string
 		switch newStatus {
 		case domain.StatusPaid:
 			feedbackText = fmt.Sprintf("💸 Ваша заявка <b>#%s</b> оплачена!", requestIDStr[:8])
 		case domain.StatusRejected:
-			feedbackText = fmt.Sprintf("❌ Ваша заявка <b>#%s</b> отклонена.", requestIDStr[:8])
+			feedbackText = fmt.Sprintf("❌ Ваша заявка <b>#%s</b> отклонена.\n\nВы можете создать новую — нажмите «📋 Новая заявка».", requestIDStr[:8])
 		}
 		if feedbackText != "" {
 			_, _ = b.SendMessage(updated.UserID, feedbackText, &gotgbot.SendMessageOpts{
@@ -158,16 +169,15 @@ func (h *Handler) submitRequest(b *gotgbot.Bot, ctx *ext.Context, state *fsm.Wiz
 	}
 
 	_ = h.fsm.Delete(dbCtx, userID)
-	h.restoreMenu(b, ctx.EffectiveChat.Id, userID)
-	_, _ = b.SendMessage(ctx.EffectiveChat.Id,
-		fmt.Sprintf("✅ Заявка #%s отправлена!", created.ID.String()[:8]), nil)
+	h.restoreMenuWithText(b, ctx.EffectiveChat.Id, userID,
+		fmt.Sprintf("✅ Заявка #%s отправлена!", created.ID.String()[:8]))
 
 	return h.notifyAdmin(b, state, user, created.ID.String())
 }
 
 func (h *Handler) notifyAdmin(b *gotgbot.Bot, state *fsm.WizardState, user *gotgbot.User, requestID string) error {
 	text := FormatAdminNotification(state, user.Username, user.FirstName, requestID)
-	kb := AdminRequestKeyboard(requestID)
+	kb := keyboards.AdminRequestKeyboard(requestID)
 
 	var msg *gotgbot.Message
 	var err error
@@ -201,15 +211,3 @@ func (h *Handler) notifyAdmin(b *gotgbot.Bot, state *fsm.WizardState, user *gotg
 	return nil
 }
 
-func AdminRequestKeyboard(requestID string) gotgbot.InlineKeyboardMarkup {
-	return gotgbot.InlineKeyboardMarkup{
-		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
-			{
-				{Text: "💸 Оплачено", CallbackData: fmt.Sprintf("a:pd:%s", requestID)},
-			},
-			{
-				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("a:rj:%s", requestID)},
-			},
-		},
-	}
-}

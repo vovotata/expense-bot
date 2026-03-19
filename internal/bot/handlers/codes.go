@@ -180,17 +180,14 @@ func (h *Handler) handleEmailPasswordText(b *gotgbot.Bot, ctx *ext.Context, stat
 		IMAPServer:  state.EmailIMAPHost,
 		PasswordEnc: encrypted,
 	})
+	_ = h.fsm.Delete(context.Background(), userID)
 	if err != nil {
 		slog.Error("failed to create email account", "error", err)
-		_, _ = b.SendMessage(chatID, "❌ Ошибка сохранения. Возможно, этот ящик уже добавлен.", nil)
+		h.restoreMenuWithText(b, chatID, userID, "❌ Ошибка сохранения. Возможно, этот ящик уже добавлен.")
 	} else {
-		_, _ = b.SendMessage(chatID,
-			fmt.Sprintf("✅ Почта <b>%s</b> подключена!\n\nКоды подтверждения будут приходить автоматически.", state.EmailAddress),
-			&gotgbot.SendMessageOpts{ParseMode: "HTML"})
+		h.restoreMenuWithText(b, chatID, userID,
+			fmt.Sprintf("✅ Почта <b>%s</b> подключена!\n\nКоды будут доступны по кнопке «🔑 Коды».", EscapeHTML(state.EmailAddress)))
 	}
-
-	_ = h.fsm.Delete(context.Background(), userID)
-	h.restoreMenu(b, chatID, userID)
 	return nil
 }
 

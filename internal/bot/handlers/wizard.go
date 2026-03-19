@@ -276,9 +276,8 @@ func (h *Handler) goBack(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardStat
 
 func (h *Handler) cancelWizard(b *gotgbot.Bot, ctx *ext.Context, userID int64) error {
 	_ = h.fsm.Delete(context.Background(), userID)
-	h.restoreMenu(b, ctx.EffectiveChat.Id, userID)
-	_, err := b.SendMessage(ctx.EffectiveChat.Id, "❌ Заявка отменена.", nil)
-	return err
+	h.restoreMenuWithText(b, ctx.EffectiveChat.Id, userID, "❌ Заявка отменена.")
+	return nil
 }
 
 func (h *Handler) sendStepMessage(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
@@ -395,18 +394,18 @@ func formatSummary(state *fsm.WizardState) string {
 		currency := keyboards.CurrencyLabel(state.PaymentMethod)
 		s += fmt.Sprintf("• Оплата: %s\n", state.PaymentMethod.Label())
 		if state.Address != "" {
-			s += fmt.Sprintf("• Адрес: <code>%s</code>\n", state.Address)
+			s += fmt.Sprintf("• Адрес: <code>%s</code>\n", EscapeHTML(state.Address))
 		}
 		if state.AddressPhoto != "" {
 			s += "• Адрес: [фото выше]\n"
 		}
-		s += fmt.Sprintf("• Сумма: %s %s\n", state.Amount, currency)
+		s += fmt.Sprintf("• Сумма: %s %s\n", EscapeHTML(state.Amount), currency)
 	} else {
-		s += fmt.Sprintf("• Аккаунт: %s\n", state.AntiqueAcct)
+		s += fmt.Sprintf("• Аккаунт: %s\n", EscapeHTML(state.AntiqueAcct))
 	}
 
 	if state.Comment != "" {
-		s += fmt.Sprintf("• Комментарий: %s\n", state.Comment)
+		s += fmt.Sprintf("• Комментарий: %s\n", EscapeHTML(state.Comment))
 	}
 
 	s += "\nВсё верно?"
@@ -426,18 +425,18 @@ func FormatAdminNotification(state *fsm.WizardState, username, firstName string,
 		currency := keyboards.CurrencyLabel(state.PaymentMethod)
 		s += fmt.Sprintf("💳 Оплата: %s\n", state.PaymentMethod.Label())
 		if state.Address != "" {
-			s += fmt.Sprintf("📍 Адрес: <code>%s</code>\n", state.Address)
+			s += fmt.Sprintf("📍 Адрес: <code>%s</code>\n", EscapeHTML(state.Address))
 		}
 		if state.AddressPhoto != "" {
 			s += "📍 Адрес: [см. фото]\n"
 		}
-		s += fmt.Sprintf("💰 Сумма: %s %s\n", state.Amount, currency)
+		s += fmt.Sprintf("💰 Сумма: %s %s\n", EscapeHTML(state.Amount), currency)
 	} else {
-		s += fmt.Sprintf("🖥 Аккаунт: %s\n", state.AntiqueAcct)
+		s += fmt.Sprintf("🖥 Аккаунт: %s\n", EscapeHTML(state.AntiqueAcct))
 	}
 
 	if state.Comment != "" {
-		s += fmt.Sprintf("💬 Комментарий: %s\n", state.Comment)
+		s += fmt.Sprintf("💬 Комментарий: %s\n", EscapeHTML(state.Comment))
 	}
 
 	msk := time.FixedZone("MSK", 3*60*60)

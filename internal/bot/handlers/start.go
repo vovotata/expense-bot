@@ -122,10 +122,15 @@ func (h *Handler) getEncryptionKey() string {
 	return h.encryptionKey
 }
 
-// restoreMenu sends back the persistent menu after wizard completes.
-func (h *Handler) restoreMenu(b *gotgbot.Bot, chatID int64, userID int64) {
+// restoreMenu sends back the persistent menu keyboard.
+// Pass a message to combine with the keyboard, or empty string for silent restore.
+func (h *Handler) restoreMenuWithText(b *gotgbot.Bot, chatID int64, userID int64, text string) {
 	kb := h.menuKeyboard(userID)
-	_, _ = b.SendMessage(chatID, "👇", &gotgbot.SendMessageOpts{
+	if text == "" {
+		text = "Выберите действие:"
+	}
+	_, _ = b.SendMessage(chatID, text, &gotgbot.SendMessageOpts{
 		ReplyMarkup: kb,
+		ParseMode:   "HTML",
 	})
 }
