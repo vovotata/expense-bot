@@ -45,7 +45,7 @@ func TestParseEmail_TableDriven(t *testing.T) {
 		},
 		{
 			name: "Code with OTP label",
-			email: "From: system@example.com\r\n" +
+			email: "From: noreply@example.com\r\n" +
 				"Subject: OTP\r\n" +
 				"Content-Type: text/plain\r\n" +
 				"\r\n" +
@@ -55,7 +55,7 @@ func TestParseEmail_TableDriven(t *testing.T) {
 		},
 		{
 			name: "Russian language code",
-			email: "From: support@bank.ru\r\n" +
+			email: "From: noreply@bank.ru\r\n" +
 				"Subject: Код подтверждения\r\n" +
 				"Content-Type: text/plain\r\n" +
 				"\r\n" +
@@ -65,7 +65,7 @@ func TestParseEmail_TableDriven(t *testing.T) {
 		},
 		{
 			name: "PIN code",
-			email: "From: notifications@app.com\r\n" +
+			email: "From: noreply@app.com\r\n" +
 				"Subject: Your PIN\r\n" +
 				"Content-Type: text/plain\r\n" +
 				"\r\n" +
@@ -83,8 +83,17 @@ func TestParseEmail_TableDriven(t *testing.T) {
 			wantNil: true,
 		},
 		{
+			name: "Regular person email with code-like text ignored",
+			email: "From: john@company.com\r\n" +
+				"Subject: Meeting notes\r\n" +
+				"Content-Type: text/plain\r\n" +
+				"\r\n" +
+				"Your code: 123456\r\n",
+			wantNil: true,
+		},
+		{
 			name: "Code in subject line",
-			email: "From: system@service.com\r\n" +
+			email: "From: noreply@example.com\r\n" +
 				"Subject: Your verification code: 654321\r\n" +
 				"Content-Type: text/plain\r\n" +
 				"\r\n" +

@@ -28,6 +28,12 @@ func ParseEmail(rawEmail io.Reader) (*ParseResult, error) {
 
 	from := msg.Header.Get("From")
 	subject := msg.Header.Get("Subject")
+
+	// Skip emails from regular people — only parse automated/service emails
+	if !IsAutomatedSender(from) {
+		return nil, nil
+	}
+
 	body, err := extractBody(msg)
 	if err != nil {
 		return nil, fmt.Errorf("parser.ParseEmail: extract body: %w", err)

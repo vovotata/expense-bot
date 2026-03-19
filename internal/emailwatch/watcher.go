@@ -165,7 +165,10 @@ func (w *Watcher) connectAndWatch(ctx context.Context, acc *domain.EmailAccount)
 
 	slog.Info("IMAP connected", "email", acc.Email)
 
-	// IDLE loop
+	// Check for any unseen messages that arrived before we connected
+	w.processNewMessages(ctx, c, acc)
+
+	// IDLE loop — wait for new messages, then process
 	for {
 		select {
 		case <-ctx.Done():
@@ -173,13 +176,12 @@ func (w *Watcher) connectAndWatch(ctx context.Context, acc *domain.EmailAccount)
 		default:
 		}
 
-		// Start IDLE
 		idleCmd, err := c.Idle()
 		if err != nil {
 			return fmt.Errorf("start IDLE: %w", err)
 		}
 
-		// Wait for either a new message or timeout
+		// Wait for IDLE timeout (server may also interrupt on new mail)
 		timer := time.NewTimer(w.idleTimeout)
 		select {
 		case <-ctx.Done():
@@ -187,12 +189,15 @@ func (w *Watcher) connectAndWatch(ctx context.Context, acc *domain.EmailAccount)
 			idleCmd.Close()
 			return nil
 		case <-timer.C:
-			// Renew IDLE (RFC 2177 recommends <= 29 min)
-			if err := idleCmd.Close(); err != nil {
-				return fmt.Errorf("close IDLE for renewal: %w", err)
-			}
-			continue
 		}
+
+		// Close IDLE to resume normal commands
+		if err := idleCmd.Close(); err != nil {
+			return fmt.Errorf("close IDLE: %w", err)
+		}
+
+		// Process any new messages that arrived during IDLE
+		w.processNewMessages(ctx, c, acc)
 	}
 }
 

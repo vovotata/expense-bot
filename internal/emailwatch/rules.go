@@ -11,6 +11,26 @@ type ParseRule struct {
 	CodeGroup     int // capture group index
 }
 
+// AutomatedSenderFilter matches typical automated/verification email senders.
+// Only emails from these senders will be parsed for codes.
+var AutomatedSenderFilter = regexp.MustCompile(
+	`(?i)(noreply|no-reply|no\.reply|` +
+		`security|verify|verification|` +
+		`auth|account|alert|notification|` +
+		`info@|support@|admin@|service@|` +
+		`do-not-reply|donotreply|` +
+		`google\.com|facebook|meta\.com|` +
+		`microsoft\.com|apple\.com|` +
+		`amazon\.com|twitter\.com|x\.com|` +
+		`telegram\.org|instagram\.com|` +
+		`binance|bybit|okx|coinbase|kraken)`,
+)
+
+// IsAutomatedSender checks if the sender looks like an automated service.
+func IsAutomatedSender(from string) bool {
+	return AutomatedSenderFilter.MatchString(from)
+}
+
 // DefaultRules are checked in order — specific rules first, then generic ones.
 var DefaultRules = []ParseRule{
 	{
@@ -37,7 +57,7 @@ var DefaultRules = []ParseRule{
 		CodePattern:  regexp.MustCompile(`(?i)(?:verification code|otp)[:\s]*(\d{4,8})`),
 		CodeGroup:    1,
 	},
-	// Generic rules — catch most verification emails
+	// Generic rules
 	{
 		Name:        "Generic numeric code",
 		CodePattern: regexp.MustCompile(`(?i)(?:code|kode|код|pin|otp|verification|подтвержд)[:\s]*(\d{4,8})`),
@@ -51,11 +71,6 @@ var DefaultRules = []ParseRule{
 	{
 		Name:        "Standalone code line",
 		CodePattern: regexp.MustCompile(`(?m)^\s*(\d{4,8})\s*$`),
-		CodeGroup:   1,
-	},
-	{
-		Name:        "Standalone alphanumeric line",
-		CodePattern: regexp.MustCompile(`(?m)^\s*([A-Za-z0-9]{4,10})\s*$`),
 		CodeGroup:   1,
 	},
 }
