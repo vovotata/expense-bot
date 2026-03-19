@@ -80,6 +80,7 @@ func (b *Bot) registerHandlers() {
 	b.dispatcher.AddHandler(handlers.NewCommand("delmail", b.handler.HandleDelMail))
 	b.dispatcher.AddHandler(handlers.NewCommand("mymails", b.handler.HandleMyMails))
 	b.dispatcher.AddHandler(handlers.NewCommand("codes", b.handler.HandleCodes))
+	b.dispatcher.AddHandler(handlers.NewCommand("testcode", b.handler.HandleTestCode))
 
 	// Callback queries
 	b.dispatcher.AddHandler(handlers.NewCallback(callbackquery.All, b.handler.HandleCallback))

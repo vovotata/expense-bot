@@ -235,6 +235,46 @@ func passwordHint(provider string) string {
 	}
 }
 
+// HandleTestCode sends a fake code notification to all users (admin only).
+func (h *Handler) HandleTestCode(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !h.isAdmin(ctx.EffectiveUser.Id) {
+		return nil
+	}
+	dbCtx := context.Background()
+
+	allUsers, err := h.store.ListAllActiveUsers(dbCtx)
+	if err != nil {
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Ошибка получения пользователей.", nil)
+		return nil
+	}
+
+	msk := time.FixedZone("MSK", 3*60*60)
+	now := time.Now().In(msk)
+	text := fmt.Sprintf(
+		"🔑 <b>Код подтверждения</b>\n\n"+
+			"📧 Почта: test@gmail.com\n"+
+			"📋 От: noreply@testservice.com\n"+
+			"📋 Тема: Your verification code\n"+
+			"🔢 Код: <code>847291</code>\n"+
+			"⏱ Получен: %s МСК\n\n"+
+			"⚠️ Код может быть действителен ограниченное время!\n\n"+
+			"<i>🧪 Это тестовое уведомление</i>",
+		now.Format("15:04:05"),
+	)
+
+	sent := 0
+	for _, u := range allUsers {
+		_, err := b.SendMessage(u.ID, text, &gotgbot.SendMessageOpts{ParseMode: "HTML"})
+		if err == nil {
+			sent++
+		}
+	}
+
+	_, _ = b.SendMessage(ctx.EffectiveChat.Id,
+		fmt.Sprintf("✅ Тестовый код отправлен %d пользователям.", sent), nil)
+	return nil
+}
+
 // HandleDelMail shows the list of email accounts to delete.
 func (h *Handler) HandleDelMail(b *gotgbot.Bot, ctx *ext.Context) error {
 	if !h.isAdmin(ctx.EffectiveUser.Id) {
