@@ -26,10 +26,10 @@ var DefaultRules = []ParseRule{
 		CodeGroup:    1,
 	},
 	{
-		Name:          "Microsoft",
-		SenderFilter:  regexp.MustCompile(`(?i)microsoft\.com|outlook\.com`),
-		CodePattern:   regexp.MustCompile(`(?i)(?:security code|code)[:\s]*(\d{4,8})`),
-		CodeGroup:     1,
+		Name:         "Microsoft",
+		SenderFilter: regexp.MustCompile(`(?i)microsoft\.com|outlook\.com`),
+		CodePattern:  regexp.MustCompile(`(?i)(?:security code|code)[:\s]*(\d{4,8})`),
+		CodeGroup:    1,
 	},
 	{
 		Name:         "Amazon",
@@ -37,14 +37,25 @@ var DefaultRules = []ParseRule{
 		CodePattern:  regexp.MustCompile(`(?i)(?:verification code|otp)[:\s]*(\d{4,8})`),
 		CodeGroup:    1,
 	},
+	// Generic rules — catch most verification emails
 	{
 		Name:        "Generic numeric code",
-		CodePattern: regexp.MustCompile(`(?i)(?:code|код|pin|otp|verification)[:\s]*(\d{4,8})`),
+		CodePattern: regexp.MustCompile(`(?i)(?:code|kode|код|pin|otp|verification|подтвержд)[:\s]*(\d{4,8})`),
 		CodeGroup:   1,
 	},
 	{
 		Name:        "Generic alphanumeric code",
-		CodePattern: regexp.MustCompile(`(?i)(?:code|код|pin)[:\s]*([A-Z0-9]{4,10})`),
+		CodePattern: regexp.MustCompile(`(?i)(?:code|kode|код|pin|otp)[:\s]*([A-Za-z0-9]{4,10})`),
+		CodeGroup:   1,
+	},
+	{
+		Name:        "Standalone code line",
+		CodePattern: regexp.MustCompile(`(?m)^\s*(\d{4,8})\s*$`),
+		CodeGroup:   1,
+	},
+	{
+		Name:        "Standalone alphanumeric line",
+		CodePattern: regexp.MustCompile(`(?m)^\s*([A-Za-z0-9]{4,10})\s*$`),
 		CodeGroup:   1,
 	},
 }

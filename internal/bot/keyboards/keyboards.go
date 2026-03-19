@@ -181,23 +181,6 @@ func CurrencyLabel(pm domain.PaymentMethod) string {
 
 // --- Email wizard keyboards ---
 
-const (
-	BtnGmail   = "📧 Gmail"
-	BtnYandex  = "📧 Yandex"
-	BtnMailRu  = "📧 Mail.ru"
-	BtnOutlook = "📧 Outlook"
-	BtnOtherMail = "📧 Другой"
-)
-
-func EmailProviderKeyboard() gotgbot.ReplyKeyboardMarkup {
-	return reply(
-		[]string{BtnGmail, BtnYandex},
-		[]string{BtnMailRu, BtnOutlook},
-		[]string{BtnOtherMail},
-		[]string{BtnCancel},
-	)
-}
-
 func EmailInputKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
 		[]string{BtnBack, BtnCancel},

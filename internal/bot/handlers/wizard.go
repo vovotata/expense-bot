@@ -334,8 +334,9 @@ func (h *Handler) sendStepMessage(b *gotgbot.Bot, ctx *ext.Context, state *fsm.W
 
 	// Email wizard steps
 	case fsm.StepEmailProvider:
-		kb := keyboards.EmailProviderKeyboard()
-		_, err := b.SendMessage(chatID, "Выберите почтовый сервис:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
+		// Used only for "other" provider IMAP host input
+		kb := keyboards.EmailInputKeyboard()
+		_, err := b.SendMessage(chatID, "Введите IMAP-сервер (например imap.example.com:993):", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepEmailAddress:

@@ -93,8 +93,6 @@ func (ws *WizardState) NextStep() Step {
 	case StepComment:
 		return StepConfirm
 	// Email flow
-	case StepEmailProvider:
-		return StepEmailAddress
 	case StepEmailAddress:
 		return StepEmailPassword
 	default:
@@ -120,9 +118,7 @@ func (ws *WizardState) PrevStep() Step {
 		return StepAmount
 	case StepConfirm:
 		return StepComment
-	// Email flow
-	case StepEmailAddress:
-		return StepEmailProvider
+	// Email flow — back from email address cancels (it's step 1)
 	case StepEmailPassword:
 		return StepEmailAddress
 	default:
