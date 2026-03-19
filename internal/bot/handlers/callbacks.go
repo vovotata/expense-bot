@@ -106,11 +106,23 @@ func (h *Handler) handleAdminCallback(b *gotgbot.Bot, ctx *ext.Context, data str
 }
 
 func (h *Handler) handleDeleteMailCallback(b *gotgbot.Bot, ctx *ext.Context, idStr string) error {
-	if ctx.EffectiveMessage.Caption != "" {
-		_, _, _ = ctx.EffectiveMessage.EditCaption(b, &gotgbot.EditMessageCaptionOpts{Caption: "Email удалён."})
-	} else {
-		_, _, _ = ctx.EffectiveMessage.EditText(b, "Email удалён.", nil)
+	userID := ctx.EffectiveUser.Id
+
+	var accountID int64
+	_, err := fmt.Sscanf(idStr, "%d", &accountID)
+	if err != nil {
+		slog.Error("invalid email account ID", "id", idStr, "error", err)
+		return nil
 	}
+
+	err = h.store.DeleteEmailAccount(context.Background(), accountID, userID)
+	if err != nil {
+		slog.Error("failed to delete email account", "error", err, "id", accountID)
+		_, _, _ = ctx.EffectiveMessage.EditText(b, "❌ Ошибка при удалении.", nil)
+		return nil
+	}
+
+	_, _, _ = ctx.EffectiveMessage.EditText(b, "✅ Почта удалена.", nil)
 	return nil
 }
 
