@@ -17,6 +17,11 @@ const (
 	StepAntiqueAccount // FLOW B only
 	StepComment
 	StepConfirm
+
+	// Email wizard steps
+	StepEmailProvider
+	StepEmailAddress
+	StepEmailPassword
 )
 
 func (s Step) String() string {
@@ -37,6 +42,12 @@ func (s Step) String() string {
 		return "comment"
 	case StepConfirm:
 		return "confirm"
+	case StepEmailProvider:
+		return "email_provider"
+	case StepEmailAddress:
+		return "email_address"
+	case StepEmailPassword:
+		return "email_password"
 	default:
 		return "unknown"
 	}
@@ -45,7 +56,7 @@ func (s Step) String() string {
 type WizardState struct {
 	UserID        int64
 	CurrentStep   Step
-	FlowType      string // "A" or "B"
+	FlowType      string // "A", "B", or "email"
 	ExpenseType   domain.ExpenseType
 	PaymentMethod domain.PaymentMethod
 	Address       string
@@ -55,6 +66,12 @@ type WizardState struct {
 	Comment       string
 	StartedAt     time.Time
 	LastActiveAt  time.Time
+
+	// Email wizard fields
+	EmailProvider string // "gmail", "yandex", "mailru", "outlook", "other"
+	EmailIMAPHost string // auto-filled or manual
+	EmailAddress  string
+	EmailPassword string
 }
 
 // NextStep returns the next step based on current flow.
@@ -75,6 +92,11 @@ func (ws *WizardState) NextStep() Step {
 		return StepComment
 	case StepComment:
 		return StepConfirm
+	// Email flow
+	case StepEmailProvider:
+		return StepEmailAddress
+	case StepEmailAddress:
+		return StepEmailPassword
 	default:
 		return StepIdle
 	}
@@ -98,6 +120,11 @@ func (ws *WizardState) PrevStep() Step {
 		return StepAmount
 	case StepConfirm:
 		return StepComment
+	// Email flow
+	case StepEmailAddress:
+		return StepEmailProvider
+	case StepEmailPassword:
+		return StepEmailAddress
 	default:
 		return StepIdle
 	}

@@ -179,6 +179,47 @@ func CurrencyLabel(pm domain.PaymentMethod) string {
 	}
 }
 
+// --- Email wizard keyboards ---
+
+const (
+	BtnGmail   = "📧 Gmail"
+	BtnYandex  = "📧 Yandex"
+	BtnMailRu  = "📧 Mail.ru"
+	BtnOutlook = "📧 Outlook"
+	BtnOtherMail = "📧 Другой"
+)
+
+func EmailProviderKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnGmail, BtnYandex},
+		[]string{BtnMailRu, BtnOutlook},
+		[]string{BtnOtherMail},
+		[]string{BtnCancel},
+	)
+}
+
+func EmailInputKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnBack, BtnCancel},
+	)
+}
+
+// IMAPServerForProvider returns the IMAP server for a known provider.
+func IMAPServerForProvider(provider string) string {
+	switch provider {
+	case "gmail":
+		return "imap.gmail.com:993"
+	case "yandex":
+		return "imap.yandex.ru:993"
+	case "mailru":
+		return "imap.mail.ru:993"
+	case "outlook":
+		return "outlook.office365.com:993"
+	default:
+		return ""
+	}
+}
+
 type EmailAccountInfo struct {
 	ID    int64
 	Email string

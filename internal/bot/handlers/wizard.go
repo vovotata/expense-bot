@@ -66,6 +66,13 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 		return h.handleCommentText(b, ctx, state, text)
 	case fsm.StepConfirm:
 		return h.handleConfirmText(b, ctx, state, text)
+	// Email wizard
+	case fsm.StepEmailProvider:
+		return h.handleEmailProviderText(b, ctx, state, text)
+	case fsm.StepEmailAddress:
+		return h.handleEmailAddressText(b, ctx, state, text)
+	case fsm.StepEmailPassword:
+		return h.handleEmailPasswordText(b, ctx, state, text)
 	default:
 		return nil
 	}
@@ -323,6 +330,24 @@ func (h *Handler) sendStepMessage(b *gotgbot.Bot, ctx *ext.Context, state *fsm.W
 
 	case fsm.StepConfirm:
 		return h.sendSummary(b, chatID, state)
+
+	// Email wizard steps
+	case fsm.StepEmailProvider:
+		kb := keyboards.EmailProviderKeyboard()
+		_, err := b.SendMessage(chatID, "Выберите почтовый сервис:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
+		return err
+
+	case fsm.StepEmailAddress:
+		kb := keyboards.EmailInputKeyboard()
+		_, err := b.SendMessage(chatID, "Введите email-адрес:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
+		return err
+
+	case fsm.StepEmailPassword:
+		kb := keyboards.EmailInputKeyboard()
+		hint := passwordHint(state.EmailProvider)
+		_, err := b.SendMessage(chatID, fmt.Sprintf("Введите пароль приложения:\n\n%s", hint),
+			&gotgbot.SendMessageOpts{ReplyMarkup: kb, ParseMode: "HTML"})
+		return err
 
 	default:
 		return nil

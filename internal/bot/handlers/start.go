@@ -16,22 +16,24 @@ import (
 )
 
 type Handler struct {
-	store      storage.Storage
-	fsm        fsm.StateStore
-	adminChat  int64
-	adminUsers map[int64]struct{}
+	store         storage.Storage
+	fsm           fsm.StateStore
+	adminChat     int64
+	adminUsers    map[int64]struct{}
+	encryptionKey string
 }
 
-func New(store storage.Storage, fsmStore fsm.StateStore, adminChat int64, adminUserIDs []int64) *Handler {
+func New(store storage.Storage, fsmStore fsm.StateStore, adminChat int64, adminUserIDs []int64, encryptionKey string) *Handler {
 	admins := make(map[int64]struct{}, len(adminUserIDs))
 	for _, id := range adminUserIDs {
 		admins[id] = struct{}{}
 	}
 	return &Handler{
-		store:      store,
-		fsm:        fsmStore,
-		adminChat:  adminChat,
-		adminUsers: admins,
+		store:         store,
+		fsm:           fsmStore,
+		adminChat:     adminChat,
+		adminUsers:    admins,
+		encryptionKey: encryptionKey,
 	}
 }
 
@@ -114,6 +116,10 @@ func (h *Handler) SendMainMenu(b *gotgbot.Bot, ctx *ext.Context) error {
 		&gotgbot.SendMessageOpts{ReplyMarkup: kb},
 	)
 	return err
+}
+
+func (h *Handler) getEncryptionKey() string {
+	return h.encryptionKey
 }
 
 // restoreMenu sends back the persistent menu after wizard completes.
