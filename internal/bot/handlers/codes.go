@@ -235,43 +235,42 @@ func passwordHint(provider string) string {
 	}
 }
 
-// HandleTestCode sends a fake code notification to all users (admin only).
+// HandleTestCode creates a fake code in DB for testing (admin only).
 func (h *Handler) HandleTestCode(b *gotgbot.Bot, ctx *ext.Context) error {
 	if !h.isAdmin(ctx.EffectiveUser.Id) {
 		return nil
 	}
 	dbCtx := context.Background()
 
-	allUsers, err := h.store.ListAllActiveUsers(dbCtx)
-	if err != nil {
-		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Ошибка получения пользователей.", nil)
+	// Get first email account to attach the test code to
+	accounts, err := h.store.ListEmailAccountsByUser(dbCtx, ctx.EffectiveUser.Id)
+	if err != nil || len(accounts) == 0 {
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Сначала добавьте почту через «➕ Добавить почту».", nil)
 		return nil
 	}
 
-	msk := time.FixedZone("MSK", 3*60*60)
-	now := time.Now().In(msk)
-	text := fmt.Sprintf(
-		"🔑 <b>Код подтверждения</b>\n\n"+
-			"📧 Почта: test@gmail.com\n"+
-			"📋 От: noreply@testservice.com\n"+
-			"📋 Тема: Your verification code\n"+
-			"🔢 Код: <code>847291</code>\n"+
-			"⏱ Получен: %s МСК\n\n"+
-			"⚠️ Код может быть действителен ограниченное время!\n\n"+
-			"<i>🧪 Это тестовое уведомление</i>",
-		now.Format("15:04:05"),
-	)
+	// Generate a random-ish test code
+	testCode := fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
 
-	sent := 0
-	for _, u := range allUsers {
-		_, err := b.SendMessage(u.ID, text, &gotgbot.SendMessageOpts{ParseMode: "HTML"})
-		if err == nil {
-			sent++
-		}
+	_, err = h.store.CreateEmailCode(dbCtx, &domain.EmailCode{
+		EmailAccountID: accounts[0].ID,
+		UserID:         ctx.EffectiveUser.Id,
+		Sender:         "noreply@testservice.com",
+		Subject:        "Test verification code",
+		Code:           testCode,
+		RuleName:       "test",
+		RawBodyHash:    fmt.Sprintf("test_%d", time.Now().UnixNano()),
+		ReceivedAt:     time.Now(),
+	})
+	if err != nil {
+		slog.Error("failed to create test code", "error", err)
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "❌ Ошибка создания тестового кода.", nil)
+		return nil
 	}
 
 	_, _ = b.SendMessage(ctx.EffectiveChat.Id,
-		fmt.Sprintf("✅ Тестовый код отправлен %d пользователям.", sent), nil)
+		fmt.Sprintf("🧪 <b>Тестовый код создан</b>\n\n<code>%s</code>  <b>TestService</b>\n\n<i>Нажмите 🔑 Коды, чтобы проверить отображение.</i>", testCode),
+		&gotgbot.SendMessageOpts{ParseMode: "HTML"})
 	return nil
 }
 
@@ -351,23 +350,73 @@ func (h *Handler) HandleCodes(b *gotgbot.Bot, ctx *ext.Context) error {
 		return nil
 	}
 	if len(codes) == 0 {
-		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Нет кодов за последние 24 часа.", nil)
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id,
+			"🔑 <b>Кодов пока нет</b>\n\n"+
+				"За последние 24 часа ничего не получено.\n\n"+
+				"<i>Коды появятся здесь автоматически, как только придут на отслеживаемые почтовые ящики.</i>",
+			&gotgbot.SendMessageOpts{ParseMode: "HTML"})
 		return nil
 	}
 
 	msk := time.FixedZone("MSK", 3*60*60)
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("🔑 <b>Последние коды</b> (%d):\n\n", len(codes)))
-	for i, code := range codes {
+	sb.WriteString(fmt.Sprintf("🔑 <b>Последние коды</b> — %d\n\n", len(codes)))
+	for _, code := range codes {
 		age := time.Since(code.ReceivedAt)
-		ageStr := formatAge(age)
-		sb.WriteString(fmt.Sprintf("<b>%d.</b> <code>%s</code>\n", i+1, code.Code))
-		sb.WriteString(fmt.Sprintf("   📧 %s  •  📋 %s\n", code.Email, code.Sender))
-		sb.WriteString(fmt.Sprintf("   ⏱ %s МСК (%s назад)\n\n", code.ReceivedAt.In(msk).Format("15:04"), ageStr))
+		serviceName := extractServiceName(code.Sender)
+		sb.WriteString(fmt.Sprintf("<code>%s</code>  <b>%s</b>\n", code.Code, serviceName))
+		sb.WriteString(fmt.Sprintf("<i>%s · %s · %s</i>\n\n",
+			code.Email,
+			code.ReceivedAt.In(msk).Format("15:04"),
+			formatAge(age)))
 	}
 
 	_, err = b.SendMessage(ctx.EffectiveChat.Id, sb.String(), &gotgbot.SendMessageOpts{ParseMode: "HTML"})
 	return err
+}
+
+// extractServiceName converts sender email to a readable service name.
+func extractServiceName(sender string) string {
+	// Known mappings
+	knownServices := map[string]string{
+		"google":    "Google",
+		"facebook":  "Facebook",
+		"meta":      "Meta",
+		"microsoft": "Microsoft",
+		"apple":     "Apple",
+		"amazon":    "Amazon",
+		"yandex":    "Яндекс",
+		"vk":        "ВКонтакте",
+		"mail":      "Mail.ru",
+		"telegram":  "Telegram",
+		"instagram": "Instagram",
+		"twitter":   "Twitter",
+		"binance":   "Binance",
+		"bybit":     "Bybit",
+		"okx":       "OKX",
+		"coinbase":  "Coinbase",
+	}
+
+	// Extract domain from "Name <email@domain>" or just "email@domain"
+	s := strings.ToLower(sender)
+	if idx := strings.LastIndex(s, "@"); idx >= 0 {
+		domain := s[idx+1:]
+		domain = strings.TrimSuffix(domain, ">")
+		// Remove TLD
+		parts := strings.Split(domain, ".")
+		if len(parts) >= 2 {
+			baseDomain := parts[len(parts)-2]
+			if name, ok := knownServices[baseDomain]; ok {
+				return name
+			}
+			// Return capitalized domain
+			if len(baseDomain) > 0 {
+				return strings.ToUpper(baseDomain[:1]) + baseDomain[1:]
+			}
+		}
+		return domain
+	}
+	return sender
 }
 
 func formatAge(d time.Duration) string {
@@ -376,8 +425,8 @@ func formatAge(d time.Duration) string {
 	}
 	if d < time.Hour {
 		m := int(d.Minutes())
-		return fmt.Sprintf("%d мин", m)
+		return fmt.Sprintf("%d мин назад", m)
 	}
 	h := int(d.Hours())
-	return fmt.Sprintf("%d ч", h)
+	return fmt.Sprintf("%d ч назад", h)
 }
