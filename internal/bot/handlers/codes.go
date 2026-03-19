@@ -112,7 +112,7 @@ func (h *Handler) handleEmailAddressText(b *gotgbot.Bot, ctx *ext.Context, state
 	kb := keyboards.EmailInputKeyboard()
 	hint := passwordHint(provider)
 	_, err := b.SendMessage(chatID,
-		fmt.Sprintf("📧 <b>%s</b> (%s)\n\n%s\n\nВведите пароль приложения:", text, providerLabel(provider), hint),
+		fmt.Sprintf("📧 <b>%s</b> (%s)\n\n%s\n\nВведите пароль приложения:\n\n🔒 <i>Сообщение с паролем будет удалено после отправки.</i>", text, providerLabel(provider), hint),
 		&gotgbot.SendMessageOpts{ReplyMarkup: kb, ParseMode: "HTML"})
 	return err
 }
@@ -152,7 +152,7 @@ func (h *Handler) handleEmailPasswordText(b *gotgbot.Bot, ctx *ext.Context, stat
 	// Delete message with password for security
 	_, _ = ctx.EffectiveMessage.Delete(b, nil)
 
-	_, _ = b.SendMessage(chatID, "🔄 Проверяю подключение к "+state.EmailIMAPHost+"...", nil)
+	_, _ = b.SendMessage(chatID, "🔒 Сообщение с паролем удалено.\n🔄 Проверяю подключение к "+state.EmailIMAPHost+"...", nil)
 
 	// Validate IMAP connection
 	err := emailwatch.ValidateIMAPConnection(state.EmailIMAPHost, state.EmailAddress, state.EmailPassword)
