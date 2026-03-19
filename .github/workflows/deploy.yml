@@ -14,8 +14,9 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          password: ${{ secrets.VPS_PASSWORD }}
           script: |
             cd /opt/expense-bot
             git pull origin main
-            docker compose up -d --build --force-recreate bot email-watcher
+            docker compose up -d --build bot email-watcher
             docker image prune -f
