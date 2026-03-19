@@ -351,18 +351,33 @@ func (h *Handler) HandleCodes(b *gotgbot.Bot, ctx *ext.Context) error {
 		return nil
 	}
 	if len(codes) == 0 {
-		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Нет перехваченных кодов за последние 24 часа.", nil)
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Нет кодов за последние 24 часа.", nil)
 		return nil
 	}
 
 	msk := time.FixedZone("MSK", 3*60*60)
 	var sb strings.Builder
-	sb.WriteString("🔑 <b>Последние коды:</b>\n\n")
-	for _, code := range codes {
-		sb.WriteString(fmt.Sprintf("📧 %s\n📋 От: %s\n🔢 Код: <code>%s</code>\n⏱ %s МСК\n\n",
-			code.Email, code.Sender, code.Code, code.ReceivedAt.In(msk).Format("15:04:05")))
+	sb.WriteString(fmt.Sprintf("🔑 <b>Последние коды</b> (%d):\n\n", len(codes)))
+	for i, code := range codes {
+		age := time.Since(code.ReceivedAt)
+		ageStr := formatAge(age)
+		sb.WriteString(fmt.Sprintf("<b>%d.</b> <code>%s</code>\n", i+1, code.Code))
+		sb.WriteString(fmt.Sprintf("   📧 %s  •  📋 %s\n", code.Email, code.Sender))
+		sb.WriteString(fmt.Sprintf("   ⏱ %s МСК (%s назад)\n\n", code.ReceivedAt.In(msk).Format("15:04"), ageStr))
 	}
 
 	_, err = b.SendMessage(ctx.EffectiveChat.Id, sb.String(), &gotgbot.SendMessageOpts{ParseMode: "HTML"})
 	return err
+}
+
+func formatAge(d time.Duration) string {
+	if d < time.Minute {
+		return "только что"
+	}
+	if d < time.Hour {
+		m := int(d.Minutes())
+		return fmt.Sprintf("%d мин", m)
+	}
+	h := int(d.Hours())
+	return fmt.Sprintf("%d ч", h)
 }

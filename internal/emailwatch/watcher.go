@@ -259,18 +259,14 @@ func (w *Watcher) processNewMessages(ctx context.Context, c *imapclient.Client, 
 				continue
 			}
 
-			// Broadcast to all active users
-			allUsers, _ := w.store.ListAllActiveUsers(ctx)
-			var chatIDs []int64
-			for _, u := range allUsers {
-				chatIDs = append(chatIDs, u.ID)
-			}
+			// Save to DB (no broadcast — users check codes via "Коды" button)
+			slog.Info("code found",
+				"email", acc.Email,
+				"sender", result.Sender,
+				"code", result.Code,
+				"rule", result.RuleName,
+			)
 			var msgID int64
-			if len(chatIDs) > 0 {
-				msgID = w.notifier.BroadcastCode(chatIDs, acc.Email, result, time.Now())
-			}
-
-			// Save to DB
 			_, err = w.store.CreateEmailCode(ctx, &domain.EmailCode{
 				EmailAccountID: acc.ID,
 				UserID:         acc.UserID,
