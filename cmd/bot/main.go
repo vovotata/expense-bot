@@ -35,7 +35,7 @@ func main() {
 	fsmStore := fsm.NewMemoryStore(cfg.FSMTTL)
 	defer fsmStore.Stop()
 
-	b, err := bot.New(cfg, store, fsmStore)
+	b, err := bot.New(ctx, cfg, store, fsmStore)
 	if err != nil {
 		slog.Error("failed to create bot", "error", err)
 		os.Exit(1)

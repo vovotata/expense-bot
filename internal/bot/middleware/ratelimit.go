@@ -2,34 +2,72 @@ package middleware
 
 import (
 	"sync"
+	"time"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"golang.org/x/time/rate"
 )
 
-// RateLimiter limits requests per user.
+type userLimiter struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+// RateLimiter limits requests per user with automatic cleanup of idle entries.
 type RateLimiter struct {
 	limiters sync.Map
 	perMin   int
+	done     chan struct{}
 }
 
-// NewRateLimiter creates a rate limiter with the given limit per minute.
+// NewRateLimiter creates a rate limiter with periodic cleanup of idle entries.
 func NewRateLimiter(perMin int) *RateLimiter {
-	return &RateLimiter{perMin: perMin}
+	rl := &RateLimiter{perMin: perMin, done: make(chan struct{})}
+	go rl.cleanupLoop()
+	return rl
+}
+
+func (rl *RateLimiter) Stop() {
+	close(rl.done)
 }
 
 func (rl *RateLimiter) getLimiter(userID int64) *rate.Limiter {
+	now := time.Now()
 	val, ok := rl.limiters.Load(userID)
 	if ok {
-		return val.(*rate.Limiter)
+		ul := val.(*userLimiter)
+		ul.lastSeen = now
+		return ul.limiter
 	}
-	limiter := rate.NewLimiter(rate.Limit(float64(rl.perMin)/60.0), rl.perMin)
-	actual, _ := rl.limiters.LoadOrStore(userID, limiter)
-	return actual.(*rate.Limiter)
+	ul := &userLimiter{
+		limiter:  rate.NewLimiter(rate.Limit(float64(rl.perMin)/60.0), rl.perMin),
+		lastSeen: now,
+	}
+	actual, _ := rl.limiters.LoadOrStore(userID, ul)
+	return actual.(*userLimiter).limiter
 }
 
-// Middleware returns an ext handler function that enforces rate limiting.
+func (rl *RateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			rl.limiters.Range(func(key, value any) bool {
+				ul := value.(*userLimiter)
+				if time.Since(ul.lastSeen) > time.Hour {
+					rl.limiters.Delete(key)
+				}
+				return true
+			})
+		case <-rl.done:
+			return
+		}
+	}
+}
+
+// Middleware enforces rate limiting per user.
 func (rl *RateLimiter) Middleware(b *gotgbot.Bot, ctx *ext.Context) error {
 	if ctx.EffectiveUser == nil {
 		return nil
@@ -45,7 +83,6 @@ func (rl *RateLimiter) Middleware(b *gotgbot.Bot, ctx *ext.Context) error {
 		} else if ctx.EffectiveMessage != nil {
 			_, _ = ctx.EffectiveMessage.Reply(b, "⚠️ Слишком много запросов. Подождите немного.", nil)
 		}
-		// Return ext.EndGroups equivalent — we stop processing by returning a special error
 		return ext.EndGroups
 	}
 

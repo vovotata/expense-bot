@@ -21,9 +21,10 @@ type Handler struct {
 	adminChat     int64
 	adminUsers    map[int64]struct{}
 	encryptionKey string
+	rootCtx       context.Context
 }
 
-func New(store storage.Storage, fsmStore fsm.StateStore, adminChat int64, adminUserIDs []int64, encryptionKey string) *Handler {
+func New(rootCtx context.Context, store storage.Storage, fsmStore fsm.StateStore, adminChat int64, adminUserIDs []int64, encryptionKey string) *Handler {
 	admins := make(map[int64]struct{}, len(adminUserIDs))
 	for _, id := range adminUserIDs {
 		admins[id] = struct{}{}
@@ -34,6 +35,7 @@ func New(store storage.Storage, fsmStore fsm.StateStore, adminChat int64, adminU
 		adminChat:     adminChat,
 		adminUsers:    admins,
 		encryptionKey: encryptionKey,
+		rootCtx:       rootCtx,
 	}
 }
 
@@ -52,7 +54,7 @@ func (h *Handler) menuKeyboard(userID int64) gotgbot.ReplyKeyboardMarkup {
 
 func (h *Handler) Start(b *gotgbot.Bot, ctx *ext.Context) error {
 	user := ctx.EffectiveUser
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	// Upsert user in DB
 	_, err := h.store.UpsertUser(dbCtx, &domain.User{
@@ -76,7 +78,7 @@ func (h *Handler) Start(b *gotgbot.Bot, ctx *ext.Context) error {
 
 func (h *Handler) startWizard(b *gotgbot.Bot, ctx *ext.Context) error {
 	user := ctx.EffectiveUser
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	state := &fsm.WizardState{
 		UserID:       user.Id,
@@ -100,7 +102,7 @@ func (h *Handler) startWizard(b *gotgbot.Bot, ctx *ext.Context) error {
 // SendMainMenu sends the persistent ReplyKeyboard menu.
 func (h *Handler) SendMainMenu(b *gotgbot.Bot, ctx *ext.Context) error {
 	user := ctx.EffectiveUser
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	// Upsert user in DB
 	_, _ = h.store.UpsertUser(dbCtx, &domain.User{
@@ -116,6 +118,11 @@ func (h *Handler) SendMainMenu(b *gotgbot.Bot, ctx *ext.Context) error {
 		&gotgbot.SendMessageOpts{ReplyMarkup: kb},
 	)
 	return err
+}
+
+// dbCtx returns a context with 10s timeout for database operations.
+func (h *Handler) dbCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(h.rootCtx, 10*time.Second)
 }
 
 func (h *Handler) getEncryptionKey() string {

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -69,7 +68,7 @@ func (h *Handler) handleAdminCallback(b *gotgbot.Bot, ctx *ext.Context, data str
 	}
 
 	// Update DB — stop if it fails
-	updated, err := h.store.UpdateRequestStatus(context.Background(), reqID, newStatus)
+	updated, err := h.store.UpdateRequestStatus(h.rootCtx, reqID, newStatus)
 	if err != nil {
 		slog.Error("failed to update request status", "error", err, "request_id", requestIDStr)
 		return nil
@@ -126,7 +125,7 @@ func (h *Handler) handleDeleteMailCallback(b *gotgbot.Bot, ctx *ext.Context, idS
 		return nil
 	}
 
-	err = h.store.DeleteEmailAccount(context.Background(), accountID, userID)
+	err = h.store.DeleteEmailAccount(h.rootCtx, accountID, userID)
 	if err != nil {
 		slog.Error("failed to delete email account", "error", err, "id", accountID)
 		_, _, _ = ctx.EffectiveMessage.EditText(b, "❌ Ошибка при удалении.", nil)
@@ -140,7 +139,7 @@ func (h *Handler) handleDeleteMailCallback(b *gotgbot.Bot, ctx *ext.Context, idS
 // submitRequest saves the request to DB and notifies admin.
 func (h *Handler) submitRequest(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
 	userID := ctx.EffectiveUser.Id
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 	user := ctx.EffectiveUser
 
 	amt := decimal.Zero

@@ -139,13 +139,30 @@ func (w *Watcher) connectAndWatch(ctx context.Context, acc *domain.EmailAccount)
 		return fmt.Errorf("decrypt password: %w", err)
 	}
 
-	// Connect to IMAP server
-	c, err := imapclient.DialTLS(acc.IMAPServer, &imapclient.Options{
-		TLSConfig: &tls.Config{},
-	})
+	// Channel to signal new mail from IMAP unilateral data
+	newMailCh := make(chan struct{}, 1)
+
+	// Connect with timeout and unilateral data handler
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+
+	dialer := &tls.Dialer{Config: &tls.Config{}}
+	conn, err := dialer.DialContext(dialCtx, "tcp", acc.IMAPServer)
 	if err != nil {
 		return fmt.Errorf("dial TLS %s: %w", acc.IMAPServer, err)
 	}
+
+	c := imapclient.New(conn, &imapclient.Options{
+		UnilateralDataHandler: &imapclient.UnilateralDataHandler{
+			Mailbox: func(data *imapclient.UnilateralDataMailbox) {
+				// Signal new mail — non-blocking send
+				select {
+				case newMailCh <- struct{}{}:
+				default:
+				}
+			},
+		},
+	})
 	defer c.Close()
 
 	// Login
@@ -165,10 +182,10 @@ func (w *Watcher) connectAndWatch(ctx context.Context, acc *domain.EmailAccount)
 
 	slog.Info("IMAP connected", "email", acc.Email)
 
-	// Check for any unseen messages that arrived before we connected
+	// Check for any unseen messages before entering IDLE
 	w.processNewMessages(ctx, c, acc)
 
-	// IDLE loop — wait for new messages, then process
+	// IDLE loop — reacts instantly to new mail via UnilateralDataHandler
 	for {
 		select {
 		case <-ctx.Done():
@@ -181,22 +198,23 @@ func (w *Watcher) connectAndWatch(ctx context.Context, acc *domain.EmailAccount)
 			return fmt.Errorf("start IDLE: %w", err)
 		}
 
-		// Wait for IDLE timeout (server may also interrupt on new mail)
-		timer := time.NewTimer(w.idleTimeout)
+		// Wait for: new mail signal, context cancellation, or safety timeout
 		select {
 		case <-ctx.Done():
-			timer.Stop()
 			idleCmd.Close()
 			return nil
-		case <-timer.C:
+		case <-newMailCh:
+			slog.Debug("new mail signal received", "email", acc.Email)
+		case <-time.After(w.idleTimeout):
+			// Safety re-IDLE even if no signal (RFC 2177)
 		}
 
-		// Close IDLE to resume normal commands
+		// Close IDLE to resume normal IMAP commands
 		if err := idleCmd.Close(); err != nil {
 			return fmt.Errorf("close IDLE: %w", err)
 		}
 
-		// Process any new messages that arrived during IDLE
+		// Process new messages immediately
 		w.processNewMessages(ctx, c, acc)
 	}
 }
@@ -303,18 +321,22 @@ func (w *Watcher) cleanupLoop(ctx context.Context) {
 	}
 }
 
-// ValidateIMAPConnection tests that the IMAP credentials are valid.
+// ValidateIMAPConnection tests that the IMAP credentials are valid (with 15s timeout).
 func ValidateIMAPConnection(server, email, password string) error {
 	if !strings.Contains(server, ":") {
 		server += ":993"
 	}
 
-	c, err := imapclient.DialTLS(server, &imapclient.Options{
-		TLSConfig: &tls.Config{},
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	dialer := &tls.Dialer{Config: &tls.Config{}}
+	conn, err := dialer.DialContext(ctx, "tcp", server)
 	if err != nil {
 		return fmt.Errorf("cannot connect to %s: %w", server, err)
 	}
+
+	c := imapclient.New(conn, nil)
 	defer c.Close()
 
 	if err := c.Login(email, password).Wait(); err != nil {

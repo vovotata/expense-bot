@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -34,7 +33,7 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 	}
 
 	// Check FSM state
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 	state, err := h.fsm.Get(dbCtx, userID)
 	if err != nil {
 		return fmt.Errorf("wizard.text: get FSM: %w", err)
@@ -228,7 +227,7 @@ func (h *Handler) showEditMenu(b *gotgbot.Bot, ctx *ext.Context, state *fsm.Wiza
 // HandlePhoto processes photo input during address step.
 func (h *Handler) HandlePhoto(b *gotgbot.Bot, ctx *ext.Context) error {
 	userID := ctx.EffectiveUser.Id
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	state, err := h.fsm.Get(dbCtx, userID)
 	if err != nil {
@@ -259,7 +258,7 @@ func (h *Handler) HandlePhoto(b *gotgbot.Bot, ctx *ext.Context) error {
 // --- helpers ---
 
 func (h *Handler) saveAndSendStep(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
-	if err := h.fsm.Set(context.Background(), state); err != nil {
+	if err := h.fsm.Set(h.rootCtx, state); err != nil {
 		return fmt.Errorf("wizard: set FSM: %w", err)
 	}
 	return h.sendStepMessage(b, ctx, state)
@@ -275,7 +274,7 @@ func (h *Handler) goBack(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardStat
 }
 
 func (h *Handler) cancelWizard(b *gotgbot.Bot, ctx *ext.Context, userID int64) error {
-	_ = h.fsm.Delete(context.Background(), userID)
+	_ = h.fsm.Delete(h.rootCtx, userID)
 	h.restoreMenuWithText(b, ctx.EffectiveChat.Id, userID, "❌ Заявка отменена.")
 	return nil
 }

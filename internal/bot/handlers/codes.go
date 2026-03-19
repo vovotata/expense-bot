@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -22,7 +21,7 @@ func (h *Handler) HandleAddMail(b *gotgbot.Bot, ctx *ext.Context) error {
 	if !h.isAdmin(userID) {
 		return nil
 	}
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	count, err := h.store.CountEmailAccountsByUser(dbCtx, userID)
 	if err != nil {
@@ -93,7 +92,7 @@ func (h *Handler) handleEmailAddressText(b *gotgbot.Bot, ctx *ext.Context, state
 	if imapHost == "" {
 		// Unknown provider — ask for IMAP server
 		state.CurrentStep = fsm.StepEmailProvider // reuse for IMAP host input
-		if err := h.fsm.Set(context.Background(), state); err != nil {
+		if err := h.fsm.Set(h.rootCtx, state); err != nil {
 			return err
 		}
 		kb := keyboards.EmailInputKeyboard()
@@ -105,7 +104,7 @@ func (h *Handler) handleEmailAddressText(b *gotgbot.Bot, ctx *ext.Context, state
 
 	// Known provider — go to password
 	state.CurrentStep = fsm.StepEmailPassword
-	if err := h.fsm.Set(context.Background(), state); err != nil {
+	if err := h.fsm.Set(h.rootCtx, state); err != nil {
 		return err
 	}
 
@@ -132,7 +131,7 @@ func (h *Handler) handleEmailProviderText(b *gotgbot.Bot, ctx *ext.Context, stat
 
 	state.EmailIMAPHost = text
 	state.CurrentStep = fsm.StepEmailPassword
-	if err := h.fsm.Set(context.Background(), state); err != nil {
+	if err := h.fsm.Set(h.rootCtx, state); err != nil {
 		return err
 	}
 
@@ -162,7 +161,7 @@ func (h *Handler) handleEmailPasswordText(b *gotgbot.Bot, ctx *ext.Context, stat
 			fmt.Sprintf("❌ Не удалось подключиться:\n<code>%s</code>\n\nПроверьте пароль и попробуйте снова.", err.Error()),
 			&gotgbot.SendMessageOpts{ParseMode: "HTML"})
 		state.EmailPassword = ""
-		_ = h.fsm.Set(context.Background(), state)
+		_ = h.fsm.Set(h.rootCtx, state)
 		return nil
 	}
 
@@ -174,13 +173,13 @@ func (h *Handler) handleEmailPasswordText(b *gotgbot.Bot, ctx *ext.Context, stat
 		return nil
 	}
 
-	_, err = h.store.CreateEmailAccount(context.Background(), &domain.EmailAccount{
+	_, err = h.store.CreateEmailAccount(h.rootCtx, &domain.EmailAccount{
 		UserID:      userID,
 		Email:       state.EmailAddress,
 		IMAPServer:  state.EmailIMAPHost,
 		PasswordEnc: encrypted,
 	})
-	_ = h.fsm.Delete(context.Background(), userID)
+	_ = h.fsm.Delete(h.rootCtx, userID)
 	if err != nil {
 		slog.Error("failed to create email account", "error", err)
 		h.restoreMenuWithText(b, chatID, userID, "❌ Ошибка сохранения. Возможно, этот ящик уже добавлен.")
@@ -237,7 +236,7 @@ func (h *Handler) HandleTestCode(b *gotgbot.Bot, ctx *ext.Context) error {
 	if !h.isAdmin(ctx.EffectiveUser.Id) {
 		return nil
 	}
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	// Get first email account to attach the test code to
 	accounts, err := h.store.ListEmailAccountsByUser(dbCtx, ctx.EffectiveUser.Id)
@@ -277,7 +276,7 @@ func (h *Handler) HandleDelMail(b *gotgbot.Bot, ctx *ext.Context) error {
 		return nil
 	}
 	userID := ctx.EffectiveUser.Id
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	accounts, err := h.store.ListEmailAccountsByUser(dbCtx, userID)
 	if err != nil {
@@ -306,7 +305,7 @@ func (h *Handler) HandleMyMails(b *gotgbot.Bot, ctx *ext.Context) error {
 		return nil
 	}
 	userID := ctx.EffectiveUser.Id
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	accounts, err := h.store.ListEmailAccountsByUser(dbCtx, userID)
 	if err != nil {
@@ -338,7 +337,7 @@ func (h *Handler) HandleMyMails(b *gotgbot.Bot, ctx *ext.Context) error {
 
 // HandleCodes shows the last 10 intercepted codes (shared across all users).
 func (h *Handler) HandleCodes(b *gotgbot.Bot, ctx *ext.Context) error {
-	dbCtx := context.Background()
+	dbCtx, dbCancel := h.dbCtx(); defer dbCancel()
 
 	codes, err := h.store.ListRecentCodes(dbCtx, 10)
 	if err != nil {

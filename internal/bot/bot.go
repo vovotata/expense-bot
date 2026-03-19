@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -25,7 +26,7 @@ type Bot struct {
 	cfg        *config.Config
 }
 
-func New(cfg *config.Config, store storage.Storage, fsmStore fsm.StateStore) (*Bot, error) {
+func New(ctx context.Context, cfg *config.Config, store storage.Storage, fsmStore fsm.StateStore) (*Bot, error) {
 	api, err := gotgbot.NewBot(cfg.BotToken, nil)
 	if err != nil {
 		return nil, fmt.Errorf("bot.New: %w", err)
@@ -42,7 +43,7 @@ func New(cfg *config.Config, store storage.Storage, fsmStore fsm.StateStore) (*B
 
 	updater := ext.NewUpdater(dispatcher, nil)
 
-	h := apphandlers.New(store, fsmStore, cfg.AdminChatID, cfg.AdminUserIDs, cfg.EmailEncryptionKey)
+	h := apphandlers.New(ctx, store, fsmStore, cfg.AdminChatID, cfg.AdminUserIDs, cfg.EmailEncryptionKey)
 
 	b := &Bot{
 		api:        api,
