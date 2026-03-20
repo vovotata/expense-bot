@@ -11,6 +11,7 @@ type Step int
 const (
 	StepIdle Step = iota
 	StepExpenseType
+	StepAgentName      // Агентки only — CROSSGIF/ULD/PREMIUM
 	StepPaymentMethod  // FLOW A only
 	StepAddress        // FLOW A only
 	StepAmount         // FLOW A only
@@ -30,6 +31,8 @@ func (s Step) String() string {
 		return "idle"
 	case StepExpenseType:
 		return "expense_type"
+	case StepAgentName:
+		return "agent_name"
 	case StepPaymentMethod:
 		return "payment_method"
 	case StepAddress:
@@ -62,6 +65,7 @@ type WizardState struct {
 	Address       string
 	AddressPhoto  string // Telegram file_id
 	Amount        string
+	AgentName     string // CROSSGIF/ULD/PREMIUM (for Агентки)
 	AntiqueAcct   string
 	Comment       string
 	StartedAt     time.Time
@@ -81,6 +85,11 @@ func (ws *WizardState) NextStep() Step {
 		if ws.FlowType == "B" {
 			return StepAntiqueAccount
 		}
+		if ws.ExpenseType == domain.ExpenseAgentki {
+			return StepAgentName
+		}
+		return StepPaymentMethod
+	case StepAgentName:
 		return StepPaymentMethod
 	case StepPaymentMethod:
 		return StepAddress
@@ -103,7 +112,12 @@ func (ws *WizardState) NextStep() Step {
 // PrevStep returns the previous step for edit navigation.
 func (ws *WizardState) PrevStep() Step {
 	switch ws.CurrentStep {
+	case StepAgentName:
+		return StepExpenseType
 	case StepPaymentMethod:
+		if ws.ExpenseType == domain.ExpenseAgentki {
+			return StepAgentName
+		}
 		return StepExpenseType
 	case StepAddress:
 		return StepPaymentMethod

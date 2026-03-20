@@ -194,12 +194,19 @@ func TestFlowTypeAssignment(t *testing.T) {
 		t.Errorf("expected StepAntiqueAccount for Flow B, got %s", next)
 	}
 
-	// Other types -> Flow A
+	// Agentki -> StepAgentName
 	ws.ExpenseType = domain.ExpenseAgentki
 	ws.FlowType = "A"
 
 	next = ws.NextStep()
+	if next != StepAgentName {
+		t.Errorf("expected StepAgentName for Agentki, got %s", next)
+	}
+
+	// Other types -> StepPaymentMethod
+	ws.ExpenseType = domain.ExpenseAdpos
+	next = ws.NextStep()
 	if next != StepPaymentMethod {
-		t.Errorf("expected StepPaymentMethod for Flow A, got %s", next)
+		t.Errorf("expected StepPaymentMethod for non-Agentki Flow A, got %s", next)
 	}
 }

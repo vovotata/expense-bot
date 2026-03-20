@@ -54,6 +54,8 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 	switch state.CurrentStep {
 	case fsm.StepExpenseType:
 		return h.handleExpenseTypeText(b, ctx, state, text)
+	case fsm.StepAgentName:
+		return h.handleAgentNameText(b, ctx, state, text)
 	case fsm.StepPaymentMethod:
 		return h.handlePaymentMethodText(b, ctx, state, text)
 	case fsm.StepAddress:
@@ -101,6 +103,18 @@ func (h *Handler) handleExpenseTypeText(b *gotgbot.Bot, ctx *ext.Context, state 
 		state.FlowType = "B"
 	} else {
 		state.FlowType = "A"
+	}
+	state.CurrentStep = state.NextStep()
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) handleAgentNameText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	switch text {
+	case keyboards.BtnCrossGif, keyboards.BtnULD, keyboards.BtnPremium:
+		state.AgentName = text
+	default:
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Выберите агентку из кнопок ниже.", nil)
+		return nil
 	}
 	state.CurrentStep = state.NextStep()
 	return h.saveAndSendStep(b, ctx, state)
@@ -189,6 +203,9 @@ func (h *Handler) handleConfirmText(b *gotgbot.Bot, ctx *ext.Context, state *fsm
 	case keyboards.BtnEditType:
 		state.CurrentStep = fsm.StepExpenseType
 		return h.saveAndSendStep(b, ctx, state)
+	case keyboards.BtnEditAgent:
+		state.CurrentStep = fsm.StepAgentName
+		return h.saveAndSendStep(b, ctx, state)
 	case keyboards.BtnEditPayment:
 		state.CurrentStep = fsm.StepPaymentMethod
 		state.Address = ""
@@ -217,7 +234,7 @@ func (h *Handler) handleConfirmText(b *gotgbot.Bot, ctx *ext.Context, state *fsm
 }
 
 func (h *Handler) showEditMenu(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
-	kb := keyboards.EditFieldKeyboard(state.FlowType)
+	kb := keyboards.EditFieldKeyboard(state.FlowType, state.AgentName != "")
 	_, err := b.SendMessage(ctx.EffectiveChat.Id, "Что хотите изменить?", &gotgbot.SendMessageOpts{
 		ReplyMarkup: kb,
 	})
@@ -286,6 +303,11 @@ func (h *Handler) sendStepMessage(b *gotgbot.Bot, ctx *ext.Context, state *fsm.W
 	case fsm.StepExpenseType:
 		kb := keyboards.ExpenseTypeKeyboard()
 		_, err := b.SendMessage(chatID, "Выберите тип расходника:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
+		return err
+
+	case fsm.StepAgentName:
+		kb := keyboards.AgentNameKeyboard()
+		_, err := b.SendMessage(chatID, "Выберите агентку:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepPaymentMethod:
@@ -389,6 +411,10 @@ func (h *Handler) sendSummary(b *gotgbot.Bot, chatID int64, state *fsm.WizardSta
 func formatSummary(state *fsm.WizardState) string {
 	s := fmt.Sprintf("📋 <b>Ваша заявка:</b>\n\n• Тип: %s\n", state.ExpenseType.Label())
 
+	if state.AgentName != "" {
+		s += fmt.Sprintf("• Агентка: %s\n", EscapeHTML(state.AgentName))
+	}
+
 	if state.FlowType == "A" {
 		currency := keyboards.CurrencyLabel(state.PaymentMethod)
 		s += fmt.Sprintf("• Оплата: %s\n", state.PaymentMethod.Label())
@@ -419,6 +445,9 @@ func FormatAdminNotification(state *fsm.WizardState, username, firstName string,
 		s += fmt.Sprintf("👤 %s\n", firstName)
 	}
 	s += fmt.Sprintf("📦 Тип: %s\n", state.ExpenseType.Label())
+	if state.AgentName != "" {
+		s += fmt.Sprintf("🏷 Агентка: <b>%s</b>\n", EscapeHTML(state.AgentName))
+	}
 
 	if state.FlowType == "A" {
 		currency := keyboards.CurrencyLabel(state.PaymentMethod)

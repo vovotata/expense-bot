@@ -38,9 +38,24 @@ const (
 	BtnCard = "Карта"
 )
 
+// Agent name button labels (for Агентки)
+const (
+	BtnCrossGif = "CROSSGIF"
+	BtnULD      = "ULD"
+	BtnPremium  = "PREMIUM"
+)
+
+func AgentNameKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnCrossGif, BtnULD, BtnPremium},
+		[]string{BtnBack, BtnCancel},
+	)
+}
+
 // Edit field button labels
 const (
 	BtnEditType    = "Тип расходника"
+	BtnEditAgent   = "Агентка"
 	BtnEditPayment = "Способ оплаты"
 	BtnEditAddress = "Адрес/Реквизиты"
 	BtnEditAmount  = "Сумма"
@@ -118,14 +133,18 @@ func ConfirmKeyboard() gotgbot.ReplyKeyboardMarkup {
 	)
 }
 
-func EditFieldKeyboard(flowType string) gotgbot.ReplyKeyboardMarkup {
+func EditFieldKeyboard(flowType string, hasAgentName bool) gotgbot.ReplyKeyboardMarkup {
 	if flowType == "A" {
-		return reply(
-			[]string{BtnEditType},
+		rows := [][]string{{BtnEditType}}
+		if hasAgentName {
+			rows = append(rows, []string{BtnEditAgent})
+		}
+		rows = append(rows,
 			[]string{BtnEditPayment, BtnEditAddress},
 			[]string{BtnEditAmount, BtnEditComment},
 			[]string{BtnEditBack},
 		)
+		return reply(rows...)
 	}
 	return reply(
 		[]string{BtnEditType},

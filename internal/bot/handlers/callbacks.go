@@ -147,6 +147,11 @@ func (h *Handler) submitRequest(b *gotgbot.Bot, ctx *ext.Context, state *fsm.Wiz
 		amt, _ = decimal.NewFromString(state.Amount)
 	}
 
+	comment := state.Comment
+	if state.AgentName != "" {
+		comment = "[" + state.AgentName + "] " + comment
+	}
+
 	req := &domain.Request{
 		UserID:         userID,
 		ExpenseType:    state.ExpenseType,
@@ -155,7 +160,7 @@ func (h *Handler) submitRequest(b *gotgbot.Bot, ctx *ext.Context, state *fsm.Wiz
 		AddressPhoto:   state.AddressPhoto,
 		Amount:         amt,
 		AntiqueAccount: state.AntiqueAcct,
-		Comment:        state.Comment,
+		Comment:        comment,
 		FlowType:       state.FlowType,
 	}
 
