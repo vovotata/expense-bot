@@ -1,7 +1,7 @@
 -- +goose Up
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TYPE expense_type AS ENUM ('agentki', 'adpos', 'antique_service', 'other_service', 'setups');
+CREATE TYPE expense_type AS ENUM ('agentki', 'adpos', 'antique_service', 'other_service', 'setups', 'proxy');
 CREATE TYPE payment_method AS ENUM ('usdt', 'trx', 'card', 'none');
 CREATE TYPE request_status AS ENUM ('pending', 'approved', 'paid', 'rejected', 'cancelled');
 
