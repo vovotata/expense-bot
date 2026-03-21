@@ -24,12 +24,16 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 		return h.Start(b, ctx)
 	case keyboards.BtnCodes:
 		return h.HandleCodes(b, ctx)
+	case keyboards.BtnMail:
+		return h.showMailSubmenu(b, ctx)
 	case keyboards.BtnMyMails:
 		return h.HandleMyMails(b, ctx)
 	case keyboards.BtnAddMail:
 		return h.HandleAddMail(b, ctx)
 	case keyboards.BtnDelMail:
 		return h.HandleDelMail(b, ctx)
+	case keyboards.BtnMailBack:
+		return h.SendMainMenu(b, ctx)
 	}
 
 	// Check FSM state
@@ -56,6 +60,8 @@ func (h *Handler) HandleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 		return h.handleExpenseTypeText(b, ctx, state, text)
 	case fsm.StepAgentName:
 		return h.handleAgentNameText(b, ctx, state, text)
+	case fsm.StepProxyProvider:
+		return h.handleProxyProviderText(b, ctx, state, text)
 	case fsm.StepPaymentMethod:
 		return h.handlePaymentMethodText(b, ctx, state, text)
 	case fsm.StepAddress:
@@ -93,6 +99,8 @@ func (h *Handler) handleExpenseTypeText(b *gotgbot.Bot, ctx *ext.Context, state 
 		expType = domain.ExpenseOtherService
 	case keyboards.BtnSetups:
 		expType = domain.ExpenseSetups
+	case keyboards.BtnProxy:
+		expType = domain.ExpenseProxy
 	default:
 		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Выберите тип из кнопок ниже.", nil)
 		return nil
@@ -118,6 +126,27 @@ func (h *Handler) handleAgentNameText(b *gotgbot.Bot, ctx *ext.Context, state *f
 	}
 	state.CurrentStep = state.NextStep()
 	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) handleProxyProviderText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
+	switch text {
+	case keyboards.BtnProxy6, keyboards.BtnProxySeller:
+		state.ProxyProvider = text
+	default:
+		_, _ = b.SendMessage(ctx.EffectiveChat.Id, "Выберите прокси-сервис из кнопок ниже.", nil)
+		return nil
+	}
+	state.CurrentStep = state.NextStep()
+	return h.saveAndSendStep(b, ctx, state)
+}
+
+func (h *Handler) showMailSubmenu(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !h.isAdmin(ctx.EffectiveUser.Id) {
+		return nil
+	}
+	kb := keyboards.MailSubmenuKeyboard()
+	_, err := b.SendMessage(ctx.EffectiveChat.Id, "📧 Управление почтой:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
+	return err
 }
 
 func (h *Handler) handlePaymentMethodText(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState, text string) error {
@@ -206,6 +235,9 @@ func (h *Handler) handleConfirmText(b *gotgbot.Bot, ctx *ext.Context, state *fsm
 	case keyboards.BtnEditAgent:
 		state.CurrentStep = fsm.StepAgentName
 		return h.saveAndSendStep(b, ctx, state)
+	case keyboards.BtnEditProxy:
+		state.CurrentStep = fsm.StepProxyProvider
+		return h.saveAndSendStep(b, ctx, state)
 	case keyboards.BtnEditPayment:
 		state.CurrentStep = fsm.StepPaymentMethod
 		state.Address = ""
@@ -234,7 +266,7 @@ func (h *Handler) handleConfirmText(b *gotgbot.Bot, ctx *ext.Context, state *fsm
 }
 
 func (h *Handler) showEditMenu(b *gotgbot.Bot, ctx *ext.Context, state *fsm.WizardState) error {
-	kb := keyboards.EditFieldKeyboard(state.FlowType, state.AgentName != "")
+	kb := keyboards.EditFieldKeyboard(state.FlowType, state.AgentName != "", state.ProxyProvider != "")
 	_, err := b.SendMessage(ctx.EffectiveChat.Id, "Что хотите изменить?", &gotgbot.SendMessageOpts{
 		ReplyMarkup: kb,
 	})
@@ -308,6 +340,11 @@ func (h *Handler) sendStepMessage(b *gotgbot.Bot, ctx *ext.Context, state *fsm.W
 	case fsm.StepAgentName:
 		kb := keyboards.AgentNameKeyboard()
 		_, err := b.SendMessage(chatID, "Выберите агентку:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
+		return err
+
+	case fsm.StepProxyProvider:
+		kb := keyboards.ProxyProviderKeyboard()
+		_, err := b.SendMessage(chatID, "Выберите прокси-сервис:", &gotgbot.SendMessageOpts{ReplyMarkup: kb})
 		return err
 
 	case fsm.StepPaymentMethod:
@@ -414,6 +451,9 @@ func formatSummary(state *fsm.WizardState) string {
 	if state.AgentName != "" {
 		s += fmt.Sprintf("• Агентка: %s\n", EscapeHTML(state.AgentName))
 	}
+	if state.ProxyProvider != "" {
+		s += fmt.Sprintf("• Прокси: %s\n", EscapeHTML(state.ProxyProvider))
+	}
 
 	if state.FlowType == "A" {
 		currency := keyboards.CurrencyLabel(state.PaymentMethod)
@@ -447,6 +487,9 @@ func FormatAdminNotification(state *fsm.WizardState, username, firstName string,
 	s += fmt.Sprintf("📦 Тип: %s\n", state.ExpenseType.Label())
 	if state.AgentName != "" {
 		s += fmt.Sprintf("🏷 Агентка: <b>%s</b>\n", EscapeHTML(state.AgentName))
+	}
+	if state.ProxyProvider != "" {
+		s += fmt.Sprintf("🌐 Прокси: <b>%s</b>\n", EscapeHTML(state.ProxyProvider))
 	}
 
 	if state.FlowType == "A" {

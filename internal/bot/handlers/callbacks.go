@@ -151,6 +151,9 @@ func (h *Handler) submitRequest(b *gotgbot.Bot, ctx *ext.Context, state *fsm.Wiz
 	if state.AgentName != "" {
 		comment = "[" + state.AgentName + "] " + comment
 	}
+	if state.ProxyProvider != "" {
+		comment = "[" + state.ProxyProvider + "] " + comment
+	}
 
 	req := &domain.Request{
 		UserID:         userID,

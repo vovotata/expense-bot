@@ -12,9 +12,7 @@ import (
 const (
 	BtnNewRequest = "📋 Новая заявка"
 	BtnCodes      = "🔑 Коды"
-	BtnMyMails    = "📧 Мои почты"
-	BtnAddMail    = "➕ Добавить почту"
-	BtnDelMail    = "🗑 Удалить почту"
+	BtnMail       = "📧 Почта"
 	BtnCancel     = "❌ Отмена"
 	BtnBack       = "⬅️ Назад"
 	BtnSkip       = "⏭ Пропустить"
@@ -22,13 +20,22 @@ const (
 	BtnEdit       = "✏️ Редактировать"
 )
 
+// Mail submenu buttons
+const (
+	BtnMyMails = "📋 Мои почты"
+	BtnAddMail = "➕ Добавить почту"
+	BtnDelMail = "🗑 Удалить почту"
+	BtnMailBack = "⬅️ Назад в меню"
+)
+
 // Expense type button labels
 const (
-	BtnAgentki  = "Агентки"
-	BtnAdpos    = "Адпос"
-	BtnAntique  = "Сервис в Антике"
-	BtnOther    = "Другие сервисы"
-	BtnSetups   = "Сетапы"
+	BtnAgentki = "Агентки"
+	BtnAdpos   = "Адпос"
+	BtnAntique = "Сервис в Антике"
+	BtnOther   = "Другие сервисы"
+	BtnSetups  = "Сетапы"
+	BtnProxy   = "Прокси"
 )
 
 // Payment method button labels
@@ -45,17 +52,17 @@ const (
 	BtnPremium  = "PREMIUM"
 )
 
-func AgentNameKeyboard() gotgbot.ReplyKeyboardMarkup {
-	return reply(
-		[]string{BtnCrossGif, BtnULD, BtnPremium},
-		[]string{BtnBack, BtnCancel},
-	)
-}
+// Proxy provider button labels
+const (
+	BtnProxy6      = "Proxy6"
+	BtnProxySeller = "ProxySeller"
+)
 
 // Edit field button labels
 const (
 	BtnEditType    = "Тип расходника"
 	BtnEditAgent   = "Агентка"
+	BtnEditProxy   = "Прокси-сервис"
 	BtnEditPayment = "Способ оплаты"
 	BtnEditAddress = "Адрес/Реквизиты"
 	BtnEditAmount  = "Сумма"
@@ -92,8 +99,16 @@ func UserMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
 func AdminMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
 		[]string{BtnNewRequest},
-		[]string{BtnCodes, BtnMyMails},
+		[]string{BtnCodes, BtnMail},
+	)
+}
+
+// MailSubmenuKeyboard — admin only, shown when "📧 Почта" is pressed.
+func MailSubmenuKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnMyMails},
 		[]string{BtnAddMail, BtnDelMail},
+		[]string{BtnMailBack},
 	)
 }
 
@@ -101,9 +116,24 @@ func AdminMenuKeyboard() gotgbot.ReplyKeyboardMarkup {
 
 func ExpenseTypeKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
-		[]string{BtnAgentki, BtnAdpos, BtnSetups},
+		[]string{BtnAgentki, BtnAdpos},
 		[]string{BtnAntique, BtnOther},
+		[]string{BtnSetups, BtnProxy},
 		[]string{BtnCancel},
+	)
+}
+
+func AgentNameKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnCrossGif, BtnULD, BtnPremium},
+		[]string{BtnBack, BtnCancel},
+	)
+}
+
+func ProxyProviderKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnProxy6, BtnProxySeller},
+		[]string{BtnBack, BtnCancel},
 	)
 }
 
@@ -133,11 +163,14 @@ func ConfirmKeyboard() gotgbot.ReplyKeyboardMarkup {
 	)
 }
 
-func EditFieldKeyboard(flowType string, hasAgentName bool) gotgbot.ReplyKeyboardMarkup {
+func EditFieldKeyboard(flowType string, hasAgentName bool, hasProxyProvider bool) gotgbot.ReplyKeyboardMarkup {
 	if flowType == "A" {
 		rows := [][]string{{BtnEditType}}
 		if hasAgentName {
 			rows = append(rows, []string{BtnEditAgent})
+		}
+		if hasProxyProvider {
+			rows = append(rows, []string{BtnEditProxy})
 		}
 		rows = append(rows,
 			[]string{BtnEditPayment, BtnEditAddress},
@@ -153,24 +186,13 @@ func EditFieldKeyboard(flowType string, hasAgentName bool) gotgbot.ReplyKeyboard
 	)
 }
 
-func ConfirmOverwriteKeyboard() gotgbot.ReplyKeyboardMarkup {
-	return reply(
-		[]string{"Да, начать новую"},
-		[]string{"Нет, продолжить"},
-	)
-}
-
-// --- Admin inline keyboards (these stay inline — they're in the admin GROUP chat) ---
+// --- Admin inline keyboards (in admin group chat) ---
 
 func AdminRequestKeyboard(requestID string) gotgbot.InlineKeyboardMarkup {
 	return gotgbot.InlineKeyboardMarkup{
 		InlineKeyboard: [][]gotgbot.InlineKeyboardButton{
-			{
-				{Text: "💸 Оплачено", CallbackData: fmt.Sprintf("a:pd:%s", requestID)},
-			},
-			{
-				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("a:rj:%s", requestID)},
-			},
+			{{Text: "💸 Оплачено", CallbackData: fmt.Sprintf("a:pd:%s", requestID)}},
+			{{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("a:rj:%s", requestID)}},
 		},
 	}
 }
@@ -198,15 +220,6 @@ func CurrencyLabel(pm domain.PaymentMethod) string {
 	}
 }
 
-// --- Email wizard keyboards ---
-
-func EmailInputKeyboard() gotgbot.ReplyKeyboardMarkup {
-	return reply(
-		[]string{BtnBack, BtnCancel},
-	)
-}
-
-// IMAPServerForProvider returns the IMAP server for a known provider.
 func IMAPServerForProvider(provider string) string {
 	switch provider {
 	case "gmail":
@@ -220,6 +233,12 @@ func IMAPServerForProvider(provider string) string {
 	default:
 		return ""
 	}
+}
+
+func EmailInputKeyboard() gotgbot.ReplyKeyboardMarkup {
+	return reply(
+		[]string{BtnBack, BtnCancel},
+	)
 }
 
 type EmailAccountInfo struct {

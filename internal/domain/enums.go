@@ -8,6 +8,7 @@ const (
 	ExpenseAntiqueService ExpenseType = "antique_service"
 	ExpenseOtherService   ExpenseType = "other_service"
 	ExpenseSetups         ExpenseType = "setups"
+	ExpenseProxy          ExpenseType = "proxy"
 )
 
 func (e ExpenseType) Label() string {
@@ -22,6 +23,8 @@ func (e ExpenseType) Label() string {
 		return "Другие сервисы"
 	case ExpenseSetups:
 		return "Сетапы"
+	case ExpenseProxy:
+		return "Прокси"
 	default:
 		return string(e)
 	}

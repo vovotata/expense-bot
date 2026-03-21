@@ -12,6 +12,7 @@ const (
 	StepIdle Step = iota
 	StepExpenseType
 	StepAgentName      // Агентки only — CROSSGIF/ULD/PREMIUM
+	StepProxyProvider  // Прокси only — Proxy6/ProxySeller
 	StepPaymentMethod  // FLOW A only
 	StepAddress        // FLOW A only
 	StepAmount         // FLOW A only
@@ -33,6 +34,8 @@ func (s Step) String() string {
 		return "expense_type"
 	case StepAgentName:
 		return "agent_name"
+	case StepProxyProvider:
+		return "proxy_provider"
 	case StepPaymentMethod:
 		return "payment_method"
 	case StepAddress:
@@ -66,6 +69,7 @@ type WizardState struct {
 	AddressPhoto  string // Telegram file_id
 	Amount        string
 	AgentName     string // CROSSGIF/ULD/PREMIUM (for Агентки)
+	ProxyProvider string // Proxy6/ProxySeller (for Прокси)
 	AntiqueAcct   string
 	Comment       string
 	StartedAt     time.Time
@@ -88,8 +92,13 @@ func (ws *WizardState) NextStep() Step {
 		if ws.ExpenseType == domain.ExpenseAgentki {
 			return StepAgentName
 		}
+		if ws.ExpenseType == domain.ExpenseProxy {
+			return StepProxyProvider
+		}
 		return StepPaymentMethod
 	case StepAgentName:
+		return StepPaymentMethod
+	case StepProxyProvider:
 		return StepPaymentMethod
 	case StepPaymentMethod:
 		return StepAddress
@@ -114,9 +123,14 @@ func (ws *WizardState) PrevStep() Step {
 	switch ws.CurrentStep {
 	case StepAgentName:
 		return StepExpenseType
+	case StepProxyProvider:
+		return StepExpenseType
 	case StepPaymentMethod:
 		if ws.ExpenseType == domain.ExpenseAgentki {
 			return StepAgentName
+		}
+		if ws.ExpenseType == domain.ExpenseProxy {
+			return StepProxyProvider
 		}
 		return StepExpenseType
 	case StepAddress:
