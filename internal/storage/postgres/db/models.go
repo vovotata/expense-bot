@@ -20,6 +20,7 @@ const (
 	ExpenseTypeAntiqueService ExpenseType = "antique_service"
 	ExpenseTypeOtherService   ExpenseType = "other_service"
 	ExpenseTypeSetups         ExpenseType = "setups"
+	ExpenseTypeProxy          ExpenseType = "proxy"
 )
 
 func (e *ExpenseType) Scan(src interface{}) error {

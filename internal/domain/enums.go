@@ -47,6 +47,8 @@ func (p PaymentMethod) Label() string {
 		return "TRX"
 	case PaymentCard:
 		return "Карта"
+	case PaymentNone:
+		return "—"
 	default:
 		return string(p)
 	}
