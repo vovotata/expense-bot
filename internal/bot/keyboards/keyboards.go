@@ -116,10 +116,8 @@ func MailSubmenuKeyboard() gotgbot.ReplyKeyboardMarkup {
 
 func ExpenseTypeKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
-		[]string{BtnAgentki, BtnAdpos},
-		[]string{BtnSetups, BtnProxy},
-		[]string{BtnOther},
-		[]string{BtnAntique},
+		[]string{BtnAgentki, BtnAdpos, BtnSetups},
+		[]string{BtnProxy, BtnOther, BtnAntique},
 		[]string{BtnCancel},
 	)
 }
@@ -153,8 +151,7 @@ func InputKeyboard() gotgbot.ReplyKeyboardMarkup {
 
 func CommentKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
-		[]string{BtnSkip},
-		[]string{BtnBack, BtnCancel},
+		[]string{BtnSkip, BtnBack, BtnCancel},
 	)
 }
 
@@ -167,28 +164,22 @@ func ConfirmKeyboard() gotgbot.ReplyKeyboardMarkup {
 
 func EditFieldKeyboard(flowType string, hasAgentName bool, hasProxyProvider bool) gotgbot.ReplyKeyboardMarkup {
 	if flowType == "A" {
-		rows := [][]string{{BtnEditType}}
+		rows := [][]string{{BtnEditType, BtnEditPayment}}
 		if hasAgentName {
-			rows = append(rows, []string{BtnEditAgent})
+			rows[0] = append(rows[0], BtnEditAgent)
 		}
 		if hasProxyProvider {
-			rows = append(rows, []string{BtnEditProxy})
+			rows[0] = append(rows[0], BtnEditProxy)
 		}
 		rows = append(rows,
-			[]string{BtnEditPayment},
-			[]string{BtnEditAddress},
-			[]string{BtnEditAmount, BtnEditComment},
-			[]string{BtnEditBack},
-			[]string{BtnCancel},
+			[]string{BtnEditAddress, BtnEditAmount, BtnEditComment},
+			[]string{BtnEditBack, BtnCancel},
 		)
 		return reply(rows...)
 	}
 	return reply(
-		[]string{BtnEditType},
-		[]string{BtnEditAccount},
-		[]string{BtnEditComment},
-		[]string{BtnEditBack},
-		[]string{BtnCancel},
+		[]string{BtnEditType, BtnEditAccount, BtnEditComment},
+		[]string{BtnEditBack, BtnCancel},
 	)
 }
 

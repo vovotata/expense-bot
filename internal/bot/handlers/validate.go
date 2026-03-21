@@ -68,10 +68,58 @@ func ValidateCardNumber(input string) (string, error) {
 	if len(input) == 0 {
 		return "", errors.New("реквизиты не могут быть пустыми")
 	}
+
+	// Extract only digits
+	digits := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, input)
+
+	// If it looks like a card number (13-19 digits), validate with Luhn
+	if len(digits) >= 13 && len(digits) <= 19 {
+		if !luhnCheck(digits) {
+			return "", errors.New("некорректный номер карты. Проверьте и попробуйте снова")
+		}
+		// Format nicely: XXXX XXXX XXXX XXXX
+		return formatCardNumber(digits), nil
+	}
+
+	// Otherwise accept as free-form requisites (IBAN, phone, etc.)
 	if utf8.RuneCountInString(input) > 256 {
 		return "", errors.New("реквизиты не могут быть длиннее 256 символов")
 	}
 	return input, nil
+}
+
+func luhnCheck(digits string) bool {
+	sum := 0
+	alt := false
+	for i := len(digits) - 1; i >= 0; i-- {
+		n := int(digits[i] - '0')
+		if alt {
+			n *= 2
+			if n > 9 {
+				n -= 9
+			}
+		}
+		sum += n
+		alt = !alt
+	}
+	return sum%10 == 0
+}
+
+func formatCardNumber(digits string) string {
+	var parts []string
+	for i := 0; i < len(digits); i += 4 {
+		end := i + 4
+		if end > len(digits) {
+			end = len(digits)
+		}
+		parts = append(parts, digits[i:end])
+	}
+	return strings.Join(parts, " ")
 }
 
 func ValidateAccount(input string) (string, error) {
