@@ -64,7 +64,7 @@ const (
 	BtnEditAgent   = "Агентка"
 	BtnEditProxy   = "Прокси-сервис"
 	BtnEditPayment = "Способ оплаты"
-	BtnEditAddress = "Адрес/Реквизиты"
+	BtnEditAddress = "Реквизиты"
 	BtnEditAmount  = "Сумма"
 	BtnEditAccount = "Аккаунт"
 	BtnEditComment = "Комментарий"
@@ -117,8 +117,9 @@ func MailSubmenuKeyboard() gotgbot.ReplyKeyboardMarkup {
 func ExpenseTypeKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
 		[]string{BtnAgentki, BtnAdpos},
-		[]string{BtnAntique, BtnOther},
 		[]string{BtnSetups, BtnProxy},
+		[]string{BtnOther},
+		[]string{BtnAntique},
 		[]string{BtnCancel},
 	)
 }
@@ -152,7 +153,8 @@ func InputKeyboard() gotgbot.ReplyKeyboardMarkup {
 
 func CommentKeyboard() gotgbot.ReplyKeyboardMarkup {
 	return reply(
-		[]string{BtnSkip, BtnBack, BtnCancel},
+		[]string{BtnSkip},
+		[]string{BtnBack, BtnCancel},
 	)
 }
 
@@ -173,16 +175,20 @@ func EditFieldKeyboard(flowType string, hasAgentName bool, hasProxyProvider bool
 			rows = append(rows, []string{BtnEditProxy})
 		}
 		rows = append(rows,
-			[]string{BtnEditPayment, BtnEditAddress},
+			[]string{BtnEditPayment},
+			[]string{BtnEditAddress},
 			[]string{BtnEditAmount, BtnEditComment},
 			[]string{BtnEditBack},
+			[]string{BtnCancel},
 		)
 		return reply(rows...)
 	}
 	return reply(
 		[]string{BtnEditType},
-		[]string{BtnEditAccount, BtnEditComment},
+		[]string{BtnEditAccount},
+		[]string{BtnEditComment},
 		[]string{BtnEditBack},
+		[]string{BtnCancel},
 	)
 }
 
